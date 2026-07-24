@@ -1,0 +1,372 @@
+{
+  "lexington": {
+    "name": "M-10AF Lexington",
+    "formula": "@profd6",
+    "die": "d6",
+    "trait": "Рефлексы",
+    "range": "Очень близко–Близко",
+    "type": "Силовое",
+    "properties": [
+      "Одноручное"
+    ]
+  },
+  "her-majesty": {
+    "name": "Her Majesty",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Рефлексы",
+    "range": "Близко",
+    "type": "Силовое",
+    "properties": [
+      "Скрытное",
+      "Глушитель",
+      "Точное",
+      "Одноручное"
+    ]
+  },
+  "lizzie": {
+    "name": "Lizzie",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Рефлексы",
+    "range": "Близко–Далеко",
+    "type": "Энергетическое",
+    "properties": [
+      "Заряд",
+      "Бронебойное",
+      "Одноручное"
+    ]
+  },
+  "genjiroh": {
+    "name": "Genjiroh",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Рефлексы",
+    "range": "Близко",
+    "type": "Умное",
+    "properties": [
+      "Наведение",
+      "Одноручное"
+    ]
+  },
+  "fenrir": {
+    "name": "Fenrir",
+    "formula": "@profd6",
+    "die": "d6",
+    "trait": "Рефлексы",
+    "range": "Очень близко–Близко",
+    "type": "Силовое",
+    "properties": [
+      "Скрытное",
+      "Автоматическое"
+    ]
+  },
+  "buzzsaw": {
+    "name": "Buzzsaw",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Рефлексы",
+    "range": "Близко",
+    "type": "Силовое",
+    "properties": [
+      "Глушитель",
+      "Автоматическое"
+    ]
+  },
+  "raiju": {
+    "name": "Raiju",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Рефлексы",
+    "range": "Близко–Далеко",
+    "type": "Энергетическое",
+    "properties": [
+      "Заряд",
+      "Бронебойное",
+      "Автоматическое"
+    ]
+  },
+  "yinglong": {
+    "name": "Yinglong",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Рефлексы",
+    "range": "Близко",
+    "type": "Умное",
+    "properties": [
+      "Наведение",
+      "Автоматическое"
+    ]
+  },
+  "mox": {
+    "name": "Mox",
+    "formula": "@profd10",
+    "die": "d10",
+    "trait": "Рефлексы",
+    "range": "Вплотную–Очень близко",
+    "type": "Силовое",
+    "properties": [
+      "Двуручное",
+      "Отбрасывание"
+    ]
+  },
+  "guts": {
+    "name": "Guts",
+    "formula": "@profd10",
+    "die": "d10",
+    "trait": "Рефлексы",
+    "range": "Очень близко",
+    "type": "Силовое",
+    "properties": [
+      "Тяжёлое",
+      "Отбрасывание",
+      "Двуручное"
+    ]
+  },
+  "order": {
+    "name": "Order",
+    "formula": "@profd10",
+    "die": "d10",
+    "trait": "Рефлексы",
+    "range": "Очень близко–Близко",
+    "type": "Энергетическое",
+    "properties": [
+      "Заряд",
+      "Бронебойное",
+      "Двуручное"
+    ]
+  },
+  "ba-xing-chong": {
+    "name": "Ba Xing Chong",
+    "formula": "@profd10",
+    "die": "d10",
+    "trait": "Рефлексы",
+    "range": "Очень близко",
+    "type": "Умное",
+    "properties": [
+      "Наведение",
+      "Область",
+      "Двуручное"
+    ]
+  },
+  "copperhead": {
+    "name": "D5 Copperhead",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Рефлексы",
+    "range": "Близко–Далеко",
+    "type": "Силовое",
+    "properties": [
+      "Автоматическое",
+      "Двуручное"
+    ]
+  },
+  "overwatch": {
+    "name": "Overwatch",
+    "formula": "@profd10",
+    "die": "d10",
+    "trait": "Рефлексы",
+    "range": "Далеко–Очень далеко",
+    "type": "Силовое",
+    "properties": [
+      "Глушитель",
+      "Точное",
+      "Двуручное"
+    ]
+  },
+  "widow-maker": {
+    "name": "Widow Maker",
+    "formula": "@profd10",
+    "die": "d10",
+    "trait": "Рефлексы",
+    "range": "Близко–Далеко",
+    "type": "Энергетическое",
+    "properties": [
+      "Заряд",
+      "Бронебойное",
+      "Двуручное"
+    ]
+  },
+  "ashura": {
+    "name": "Ashura",
+    "formula": "@profd12",
+    "die": "d12",
+    "trait": "Рефлексы",
+    "range": "Далеко–Очень далеко",
+    "type": "Умное",
+    "properties": [
+      "Наведение",
+      "Точное",
+      "Двуручное"
+    ]
+  },
+  "defender": {
+    "name": "M-2067 Defender",
+    "formula": "@profd10",
+    "die": "d10",
+    "trait": "Телосложение",
+    "range": "Близко–Далеко",
+    "type": "Силовое",
+    "properties": [
+      "Автоматическое",
+      "Тяжёлое",
+      "Двуручное"
+    ]
+  },
+  "ma70-hb": {
+    "name": "MA70 HB",
+    "formula": "@profd10",
+    "die": "d10",
+    "trait": "Телосложение",
+    "range": "Близко–Далеко",
+    "type": "Силовое",
+    "properties": [
+      "Автоматическое",
+      "Тяжёлое",
+      "Двуручное"
+    ]
+  },
+  "rl7-chytomyr": {
+    "name": "RL-7 Читомир",
+    "formula": "@profd12",
+    "die": "d12",
+    "trait": "Телосложение",
+    "range": "Близко–Далеко",
+    "type": "Энергетическое",
+    "properties": [
+      "Область",
+      "Взрывное",
+      "Тяжёлое",
+      "Двуручное"
+    ]
+  },
+  "hercules-3ax": {
+    "name": "Hercules 3AX",
+    "formula": "@profd12",
+    "die": "d12",
+    "trait": "Телосложение",
+    "range": "Далеко",
+    "type": "Умное",
+    "properties": [
+      "Наведение",
+      "Область",
+      "Тяжёлое",
+      "Двуручное"
+    ]
+  },
+  "neurotoxin-knife": {
+    "name": "Нейротоксиновый нож",
+    "formula": "@profd6",
+    "die": "d6",
+    "trait": "Рефлексы",
+    "range": "Вплотную",
+    "type": "Ближний бой",
+    "properties": [
+      "Скрытное",
+      "Быстрое",
+      "Одноручное"
+    ]
+  },
+  "scalpel": {
+    "name": "Scalpel",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Рефлексы",
+    "range": "Вплотную",
+    "type": "Ближний бой",
+    "properties": [
+      "Скрытное",
+      "Точное",
+      "Одноручное"
+    ]
+  },
+  "satori": {
+    "name": "Satori",
+    "formula": "@profd10",
+    "die": "d10",
+    "trait": "Рефлексы",
+    "range": "Вплотную",
+    "type": "Ближний бой",
+    "properties": [
+      "Точное",
+      "Быстрое",
+      "Двуручное"
+    ]
+  },
+  "kanabo": {
+    "name": "Kanabo",
+    "formula": "@profd10",
+    "die": "d10",
+    "trait": "Телосложение",
+    "range": "Вплотную",
+    "type": "Ближний бой",
+    "properties": [
+      "Тяжёлое",
+      "Отбрасывание",
+      "Двуручное"
+    ]
+  },
+  "reinforced-arms": {
+    "name": "Усиленные руки",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Телосложение",
+    "range": "Вплотную",
+    "type": "Встроенное оружие",
+    "properties": [
+      "Тяжёлое",
+      "Отбрасывание"
+    ]
+  },
+  "mantis-blades": {
+    "name": "Клинки богомола",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Рефлексы",
+    "range": "Вплотную",
+    "type": "Встроенное оружие",
+    "properties": [
+      "Скрытное",
+      "Быстрое",
+      "Точное"
+    ]
+  },
+  "monowire": {
+    "name": "Моноструна",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Рефлексы",
+    "range": "Очень близко",
+    "type": "Встроенное оружие",
+    "properties": [
+      "Быстрое",
+      "Скрытное",
+      "Область"
+    ]
+  },
+  "wallbreaker-caliber": {
+    "name": "Пробивной калибр",
+    "formula": "@profd12",
+    "die": "d12",
+    "trait": "Телосложение",
+    "range": "Близко–Далеко",
+    "type": "Встроенное оружие",
+    "properties": [
+      "Тяжёлое",
+      "Бронебойное",
+      "Пробитие"
+    ]
+  },
+  "reinforced-legs": {
+    "name": "Усиленные ноги",
+    "formula": "@profd8",
+    "die": "d8",
+    "trait": "Телосложение",
+    "range": "Вплотную",
+    "type": "Встроенное оружие",
+    "properties": [
+      "Быстрое",
+      "Отбрасывание"
+    ]
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "id": "daggerheart-night-city-2073-fv13",
+  "title": "Night City 2073 — киберпанк для Daggerheart (Foundry 13)",
+  "version": "0.1.0-fv13.1",
+  "compatibility": {
+    "minimum": "13.346",
+    "verified": "13.351",
+    "maximum": "13"
+  },
+  "description": "<p>Тестовая русскоязычная киберпанк-адаптация Daggerheart: четыре класса, классовые способности, оружие, импланты, Драйв, Киберпсихоз, Удача и автоматические формулы урона.</p>",
+  "authors": [
+    {
+      "name": "Домашняя игровая группа"
+    }
+  ],
+  "flags": {
+    "canUpload": true
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "daggerheart",
+        "type": "system",
+        "compatibility": {
+          "minimum": "1.9.0",
+          "verified": "1.9.14",
+          "maximum": "1.9.14"
+        }
+      }
+    ]
+  },
+  "packs": [
+    {
+      "name": "nc2073-items",
+      "label": "Night City 2073: классы, оружие и импланты",
+      "path": "packs/nc2073-items",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "nc2073-macros",
+      "label": "Night City 2073: макросы",
+      "path": "packs/nc2073-macros",
+      "type": "Macro",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    }
+  ],
+  "esmodules": [
+    "scripts/night-city-2073.js"
+  ],
+  "styles": [
+    "styles/night-city-2073.css"
+  ],
+  "languages": [
+    {
+      "lang": "ru",
+      "name": "Русский",
+      "path": "lang/ru.json"
+    }
+  ]
+}

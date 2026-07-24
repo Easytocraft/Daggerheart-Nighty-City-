@@ -1,0 +1,72 @@
+{
+  "DAGGERHEART": {
+    "CONFIG": {
+      "Traits": {
+        "agility": {
+          "name": "Рефлексы",
+          "short": "РЕФ",
+          "verb": {
+            "sprint": "Ускориться",
+            "leap": "Увернуться",
+            "maneuver": "Сманеврировать"
+          }
+        },
+        "strength": {
+          "name": "Телосложение",
+          "short": "ТЕЛ",
+          "verb": {
+            "lift": "Поднять",
+            "smash": "Сломать",
+            "grapple": "Схватить"
+          }
+        },
+        "finesse": {
+          "name": "Удача",
+          "short": "УДЧ",
+          "verb": {
+            "control": "Рискнуть",
+            "hide": "Положиться на случай",
+            "tinker": "Сыграть"
+          }
+        },
+        "instinct": {
+          "name": "Восприятие",
+          "short": "ВОС",
+          "verb": {
+            "perceive": "Заметить",
+            "sense": "Почувствовать",
+            "navigate": "Сориентироваться"
+          }
+        },
+        "presence": {
+          "name": "Крутость",
+          "short": "КРТ",
+          "verb": {
+            "charm": "Убедить",
+            "perform": "Впечатлить",
+            "deceive": "Обмануть"
+          }
+        },
+        "knowledge": {
+          "name": "Интеллект",
+          "short": "ИНТ",
+          "verb": {
+            "recall": "Вспомнить",
+            "analyze": "Проанализировать",
+            "comprehend": "Взломать"
+          }
+        }
+      }
+    },
+    "GENERAL": {
+      "hope": "Драйв",
+      "stress": "Киберпсихоз",
+      "armor": "Броня",
+      "fear": "Страх",
+      "HitPoints": {
+        "single": "Рана",
+        "plural": "Раны"
+      }
+    }
+  }
+}
