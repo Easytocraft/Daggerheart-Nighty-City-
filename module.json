@@ -13,6 +13,9 @@
       "name": "Домашняя игровая группа"
     }
   ],
+  "url": "https://github.com/Easytocraft/Daggerheart-Nighty-City-",
+  "manifest": "https://raw.githubusercontent.com/Easytocraft/Daggerheart-Nighty-City-/main/module.json",
+  "download": "https://github.com/Easytocraft/Daggerheart-Nighty-City-/archive/refs/heads/main.zip",
   "flags": {
     "canUpload": true
   },
