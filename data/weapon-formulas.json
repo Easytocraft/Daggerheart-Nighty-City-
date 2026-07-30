@@ -1,9 +1,9 @@
 {
   "lexington": {
-    "name": "M-10AF Lexington",
+    "name": "M-10AF «Лексингтон»",
     "formula": "@profd6",
     "die": "d6",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Очень близко–Близко",
     "type": "Силовое",
     "properties": [
@@ -11,10 +11,10 @@
     ]
   },
   "her-majesty": {
-    "name": "Her Majesty",
+    "name": "«Её Величество»",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Близко",
     "type": "Силовое",
     "properties": [
@@ -25,10 +25,10 @@
     ]
   },
   "lizzie": {
-    "name": "Lizzie",
+    "name": "«Лиззи»",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Близко–Далеко",
     "type": "Энергетическое",
     "properties": [
@@ -38,10 +38,10 @@
     ]
   },
   "genjiroh": {
-    "name": "Genjiroh",
+    "name": "«Гэндзиро»",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Близко",
     "type": "Умное",
     "properties": [
@@ -50,10 +50,10 @@
     ]
   },
   "fenrir": {
-    "name": "Fenrir",
+    "name": "«Фенрир»",
     "formula": "@profd6",
     "die": "d6",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Очень близко–Близко",
     "type": "Силовое",
     "properties": [
@@ -62,10 +62,10 @@
     ]
   },
   "buzzsaw": {
-    "name": "Buzzsaw",
+    "name": "«Циркулярка»",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Близко",
     "type": "Силовое",
     "properties": [
@@ -74,10 +74,10 @@
     ]
   },
   "raiju": {
-    "name": "Raiju",
+    "name": "«Райдзю»",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Близко–Далеко",
     "type": "Энергетическое",
     "properties": [
@@ -87,10 +87,10 @@
     ]
   },
   "yinglong": {
-    "name": "Yinglong",
+    "name": "«Иньлун»",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Близко",
     "type": "Умное",
     "properties": [
@@ -99,10 +99,10 @@
     ]
   },
   "mox": {
-    "name": "Mox",
+    "name": "«Мокс»",
     "formula": "@profd10",
     "die": "d10",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Вплотную–Очень близко",
     "type": "Силовое",
     "properties": [
@@ -111,10 +111,10 @@
     ]
   },
   "guts": {
-    "name": "Guts",
+    "name": "«Кишки»",
     "formula": "@profd10",
     "die": "d10",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Очень близко",
     "type": "Силовое",
     "properties": [
@@ -124,10 +124,10 @@
     ]
   },
   "order": {
-    "name": "Order",
+    "name": "«Порядок»",
     "formula": "@profd10",
     "die": "d10",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Очень близко–Близко",
     "type": "Энергетическое",
     "properties": [
@@ -137,10 +137,10 @@
     ]
   },
   "ba-xing-chong": {
-    "name": "Ba Xing Chong",
+    "name": "«Ба Син Чун»",
     "formula": "@profd10",
     "die": "d10",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Очень близко",
     "type": "Умное",
     "properties": [
@@ -150,10 +150,10 @@
     ]
   },
   "copperhead": {
-    "name": "D5 Copperhead",
+    "name": "D5 «Медянка»",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Близко–Далеко",
     "type": "Силовое",
     "properties": [
@@ -162,10 +162,10 @@
     ]
   },
   "overwatch": {
-    "name": "Overwatch",
+    "name": "«Надзор»",
     "formula": "@profd10",
     "die": "d10",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Далеко–Очень далеко",
     "type": "Силовое",
     "properties": [
@@ -175,10 +175,10 @@
     ]
   },
   "widow-maker": {
-    "name": "Widow Maker",
+    "name": "«Вдоводел»",
     "formula": "@profd10",
     "die": "d10",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Близко–Далеко",
     "type": "Энергетическое",
     "properties": [
@@ -188,10 +188,10 @@
     ]
   },
   "ashura": {
-    "name": "Ashura",
+    "name": "«Ашура»",
     "formula": "@profd12",
     "die": "d12",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Далеко–Очень далеко",
     "type": "Умное",
     "properties": [
@@ -201,10 +201,10 @@
     ]
   },
   "defender": {
-    "name": "M-2067 Defender",
+    "name": "M-2067 «Защитник»",
     "formula": "@profd10",
     "die": "d10",
-    "trait": "Телосложение",
+    "trait": "Сила",
     "range": "Близко–Далеко",
     "type": "Силовое",
     "properties": [
@@ -217,7 +217,7 @@
     "name": "MA70 HB",
     "formula": "@profd10",
     "die": "d10",
-    "trait": "Телосложение",
+    "trait": "Сила",
     "range": "Близко–Далеко",
     "type": "Силовое",
     "properties": [
@@ -227,10 +227,10 @@
     ]
   },
   "rl7-chytomyr": {
-    "name": "RL-7 Читомир",
+    "name": "RL-7 «Читомир»",
     "formula": "@profd12",
     "die": "d12",
-    "trait": "Телосложение",
+    "trait": "Сила",
     "range": "Близко–Далеко",
     "type": "Энергетическое",
     "properties": [
@@ -241,10 +241,10 @@
     ]
   },
   "hercules-3ax": {
-    "name": "Hercules 3AX",
+    "name": "«Геркулес 3AX»",
     "formula": "@profd12",
     "die": "d12",
-    "trait": "Телосложение",
+    "trait": "Сила",
     "range": "Далеко",
     "type": "Умное",
     "properties": [
@@ -258,7 +258,7 @@
     "name": "Нейротоксиновый нож",
     "formula": "@profd6",
     "die": "d6",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Вплотную",
     "type": "Ближний бой",
     "properties": [
@@ -268,10 +268,10 @@
     ]
   },
   "scalpel": {
-    "name": "Scalpel",
+    "name": "«Скальпель»",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Вплотную",
     "type": "Ближний бой",
     "properties": [
@@ -281,10 +281,10 @@
     ]
   },
   "satori": {
-    "name": "Satori",
+    "name": "«Сатори»",
     "formula": "@profd10",
     "die": "d10",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Вплотную",
     "type": "Ближний бой",
     "properties": [
@@ -294,10 +294,10 @@
     ]
   },
   "kanabo": {
-    "name": "Kanabo",
+    "name": "«Канабо»",
     "formula": "@profd10",
     "die": "d10",
-    "trait": "Телосложение",
+    "trait": "Сила",
     "range": "Вплотную",
     "type": "Ближний бой",
     "properties": [
@@ -310,7 +310,7 @@
     "name": "Усиленные руки",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Телосложение",
+    "trait": "Сила",
     "range": "Вплотную",
     "type": "Встроенное оружие",
     "properties": [
@@ -322,7 +322,7 @@
     "name": "Клинки богомола",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Вплотную",
     "type": "Встроенное оружие",
     "properties": [
@@ -335,7 +335,7 @@
     "name": "Моноструна",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Рефлексы",
+    "trait": "Ловкость",
     "range": "Очень близко",
     "type": "Встроенное оружие",
     "properties": [
@@ -348,7 +348,7 @@
     "name": "Пробивной калибр",
     "formula": "@profd12",
     "die": "d12",
-    "trait": "Телосложение",
+    "trait": "Сила",
     "range": "Близко–Далеко",
     "type": "Встроенное оружие",
     "properties": [
@@ -361,7 +361,7 @@
     "name": "Усиленные ноги",
     "formula": "@profd8",
     "die": "d8",
-    "trait": "Телосложение",
+    "trait": "Сила",
     "range": "Вплотную",
     "type": "Встроенное оружие",
     "properties": [

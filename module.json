@@ -1,21 +1,18 @@
 {
   "id": "daggerheart-night-city-2073-fv13",
   "title": "Night City 2073 — киберпанк для Daggerheart (Foundry 13)",
-  "version": "0.1.0-fv13.1",
+  "version": "0.2.0-fv13.1",
   "compatibility": {
     "minimum": "13.346",
     "verified": "13.351",
     "maximum": "13"
   },
-  "description": "<p>Тестовая русскоязычная киберпанк-адаптация Daggerheart: четыре класса, классовые способности, оружие, импланты, Драйв, Киберпсихоз, Удача и автоматические формулы урона.</p>",
+  "description": "<p>Русскоязычная киберпанк-адаптация для Foundry VTT 13: чёрно-красный AR-паспорт, проверки d20, четыре класса, восемь подклассов, четыре фракции, оружие, импланты и полный комплект изображений.</p>",
   "authors": [
     {
       "name": "Домашняя игровая группа"
     }
   ],
-  "url": "https://github.com/Easytocraft/Daggerheart-Nighty-City-",
-  "manifest": "https://raw.githubusercontent.com/Easytocraft/Daggerheart-Nighty-City-/main/module.json",
-  "download": "https://github.com/Easytocraft/Daggerheart-Nighty-City-/archive/refs/heads/main.zip",
   "flags": {
     "canUpload": true
   },
@@ -35,7 +32,7 @@
   "packs": [
     {
       "name": "nc2073-items",
-      "label": "Night City 2073: классы, оружие и импланты",
+      "label": "Night City 2073: персонажи, оружие и импланты",
       "path": "packs/nc2073-items",
       "type": "Item",
       "system": "daggerheart",
