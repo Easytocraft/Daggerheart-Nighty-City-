@@ -1,16 +1,13 @@
 {
   "id": "daggerheart-night-city-2073-fv13",
   "title": "Night City 2073 — киберпанк для Daggerheart (Foundry 13)",
-  "version": "0.2.0-fv13.2",
-  "manifest": "https://raw.githubusercontent.com/Easytocraft/Daggerheart-Nighty-City-/main/module.json",
-  "download": "https://github.com/Easytocraft/Daggerheart-Nighty-City-/archive/refs/heads/main.zip",
-  "url": "https://github.com/Easytocraft/Daggerheart-Nighty-City-",
+  "version": "0.3.0-fv13.1",
   "compatibility": {
     "minimum": "13.346",
     "verified": "13.351",
-    "maximum": "13.999"
+    "maximum": "13"
   },
-  "description": "<p>Русскоязычная киберпанк-адаптация для Foundry VTT 13: чёрно-красный AR-паспорт, проверки d20, четыре класса, восемь подклассов, четыре фракции, оружие, импланты и полный комплект изображений.</p>",
+  "description": "<p>Русскоязычная киберпанк-адаптация для Foundry VTT 13: чёрно-красный AR-паспорт, нативные броски дуальности Daggerheart, пошаговый конструктор персонажа, четыре класса, восемь подклассов, четыре фракции, оружие, импланты и полный комплект изображений.</p>",
   "authors": [
     {
       "name": "Домашняя игровая группа"

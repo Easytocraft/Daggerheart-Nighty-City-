@@ -1,5 +1,8 @@
 const MODULE_ID = "daggerheart-night-city-2073-fv13";
 const FLAG_SCOPE = MODULE_ID;
+const ITEM_PACK_ID = "nc2073-items";
+const ACTIVE_TABS = new Map();
+const INJECTION_SERIAL = new WeakMap();
 
 const TRAITS = {
   strength: { label: "Сила", className: "" },
@@ -10,11 +13,19 @@ const TRAITS = {
   presence: { label: "Крутость", className: "" },
 };
 
-const ROLL_MODE = Object.freeze({
+const LUCK_ROLL_MODE = Object.freeze({
   normal: { label: "обычная", formula: "1d20" },
   advantage: { label: "преимущество", formula: "2d20kh" },
   disadvantage: { label: "помеха", formula: "2d20kl" }
 });
+
+const TAB_DEFINITIONS = Object.freeze([
+  { id: "properties", label: "Свойства", icon: "fa-list-check" },
+  { id: "implants", label: "Импланты", icon: "fa-microchip" },
+  { id: "inventory", label: "Инвентарь", icon: "fa-briefcase" },
+  { id: "bio", label: "Биография", icon: "fa-id-card" },
+  { id: "effects", label: "Эффекты", icon: "fa-wand-magic-sparkles" }
+]);
 
 const CAPACITY_BY_LEVEL = Object.freeze({
   1: 6,
@@ -166,7 +177,7 @@ function rollModeFromEvent(event) {
 async function rollD20(actor, label, modifier = 0, mode = "normal") {
   actor ??= selectedActor();
   if (!actor) return ui.notifications.warn("Выберите токен или назначьте персонажа.");
-  const rollMode = ROLL_MODE[mode] ?? ROLL_MODE.normal;
+  const rollMode = LUCK_ROLL_MODE[mode] ?? LUCK_ROLL_MODE.normal;
   const numericModifier = Number(modifier) || 0;
   const sign = numericModifier >= 0 ? "+" : "-";
   const formula = `${rollMode.formula} ${sign} ${Math.abs(numericModifier)}`;
@@ -177,11 +188,40 @@ async function rollD20(actor, label, modifier = 0, mode = "normal") {
   });
 }
 
-async function rollTrait(actor, trait, mode = "normal") {
+async function rollDuality(actor, trait, label = null) {
   actor ??= selectedActor();
   if (!actor) return ui.notifications.warn("Выберите токен или назначьте персонажа.");
+  if (!TRAITS[trait]) return ui.notifications.warn("Для этой проверки не назначена характеристика.");
+
+  /*
+   * Daggerheart 1.9.14 owns the actual action-roll dialog, advantage/disadvantage,
+   * Drive/Fear result and resource automation. Keeping the native call here also
+   * means weapons, implants and abilities obey future world-level roll modifiers.
+   */
+  if (typeof actor.rollTrait === "function") return actor.rollTrait(trait);
+
+  // Safe fallback for an unusual sheet implementation without rollTrait().
   const modifier = Number(actor.system?.traits?.[trait]?.value) || 0;
-  return rollD20(actor, TRAITS[trait]?.label ?? trait, modifier, mode);
+  const sign = modifier >= 0 ? "+" : "-";
+  const roll = await new Roll(
+    `1d12[Драйв] + 1d12[Страх] ${sign} ${Math.abs(modifier)}`
+  ).evaluate();
+  const drive = Number(roll.dice?.[0]?.total) || 0;
+  const fear = Number(roll.dice?.[1]?.total) || 0;
+  const result =
+    drive === fear
+      ? "критический результат"
+      : drive > fear
+        ? "результат с Драйвом"
+        : "результат со Страхом";
+  return roll.toMessage({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    flavor: `${label ?? TRAITS[trait].label} · дуальность · Драйв ${drive} / Страх ${fear} · ${result}`
+  });
+}
+
+async function rollTrait(actor, trait) {
+  return rollDuality(actor, trait, TRAITS[trait]?.label ?? trait);
 }
 
 function actorLuck(actor) {
@@ -217,7 +257,7 @@ async function rollDeathSave(actor) {
   });
 }
 
-async function rollWeapon(actor, item, mode = "normal") {
+async function rollWeapon(actor, item) {
   actor ??= selectedActor();
   if (!actor) return ui.notifications.warn("Выберите токен или назначьте персонажа.");
   item ??=
@@ -239,10 +279,36 @@ async function rollWeapon(actor, item, mode = "normal") {
   }
 
   const trait = item.getFlag(FLAG_SCOPE, "attackTrait") ?? "agility";
-  const modifier = Number(actor.system?.traits?.[trait]?.value) || 0;
   const traitLabel = item.getFlag(FLAG_SCOPE, "attackTraitLabel") ?? TRAITS[trait]?.label ?? trait;
-  await rollD20(actor, `${item.name} · атака (${traitLabel})`, modifier, mode);
+
+  // Native Daggerheart weapon actions are duality rolls and include the system's
+  // action dialog, targets, modifiers, Drive/Fear outcome and damage workflow.
+  if (typeof item.use === "function") return item.use();
+  const action = item.system?.actionsList?.[0] ?? item.system?.attack;
+  if (typeof action?.use === "function") return action.use();
+
+  await rollDuality(actor, trait, `${item.name} · атака (${traitLabel})`);
   return rollWeaponDamage(actor, item);
+}
+
+async function rollItemDuality(actor, item) {
+  actor ??= selectedActor();
+  if (!actor) return ui.notifications.warn("Выберите токен или назначьте персонажа.");
+  if (!item) return ui.notifications.warn("Карточка способности или импланта не найдена.");
+
+  if (
+    isNightCityItem(item, "weapon") ||
+    item.getFlag(FLAG_SCOPE, "integratedWeapon") === true
+  ) {
+    return rollWeapon(actor, item);
+  }
+
+  const trait = item.getFlag(FLAG_SCOPE, "rollTrait");
+  if (!trait) {
+    item.sheet?.render?.(true);
+    return ui.notifications.info(`${item.name}: это пассивная карточка без отдельной проверки.`);
+  }
+  return rollDuality(actor, trait, `${item.name} · ${TRAITS[trait]?.label ?? trait}`);
 }
 
 async function rollWeaponDamage(actor, item) {
@@ -398,22 +464,47 @@ function eddiesValue(actor) {
   return 0;
 }
 
+async function editEddies(actor) {
+  if (!actor?.isOwner) return;
+  const current = eddiesValue(actor);
+  const requested = window.prompt("Баланс эдди", String(current));
+  if (requested === null) return;
+  const normalized = String(requested).replace(/\s+/g, "").replace(",", ".");
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount) || amount < 0) {
+    return ui.notifications.warn("Укажите неотрицательное число эдди.");
+  }
+  await actor.setFlag(FLAG_SCOPE, "eddies", Math.floor(amount));
+}
+
 function featureList(items, emptyText) {
   if (!items.length) return `<div class="nc2073-empty">${escapeHtml(emptyText)}</div>`;
   return items
     .map(item => {
       const direction = ncFlag(item, "direction") ?? item.system?.featureForm ?? "класс";
       const description = itemDescription(item);
+      const trait = ncFlag(item, "rollTrait");
       return `
-        <button type="button" class="nc2073-card nc2073-card--feature"
-          data-nc-action="item" data-item-id="${item.id}">
-          <img src="${escapeHtml(item.img)}" alt="">
-          <span class="nc2073-card__copy">
-            <strong>${escapeHtml(item.name)}</strong>
-            <small>${escapeHtml(direction)}</small>
-            ${description ? `<span>${escapeHtml(description)}</span>` : ""}
-          </span>
-        </button>
+        <div class="nc2073-card nc2073-card--feature">
+          <button type="button" class="nc2073-card__open"
+            data-nc-action="item" data-item-id="${item.id}">
+            <img src="${escapeHtml(item.img)}" alt="">
+            <span class="nc2073-card__copy">
+              <strong>${escapeHtml(item.name)}</strong>
+              <small>${escapeHtml(direction)}</small>
+              ${description ? `<span>${escapeHtml(description)}</span>` : ""}
+            </span>
+          </button>
+          ${
+            trait
+              ? `<button type="button" class="nc2073-action nc2073-action--duality"
+                  data-nc-action="duality" data-item-id="${item.id}"
+                  title="Проверка дуальности: Драйв d12 + Страх d12">
+                  <i class="fa-solid fa-dice-d12"></i><span>2d12</span>
+                </button>`
+              : ""
+          }
+        </div>
       `;
     })
     .join("");
@@ -447,7 +538,7 @@ function inventoryList(items, emptyText, { weapons = false } = {}) {
             weapons
               ? `<button type="button" class="nc2073-action"
                   data-nc-action="weapon" data-item-id="${item.id}"
-                  title="Клик: обычная атака · Shift: преимущество · Alt: помеха">Атака</button>`
+                  title="Нативная атака Daggerheart: кости дуальности">Атака</button>`
               : ""
           }
         </div>
@@ -504,7 +595,7 @@ function quickSlot(item, index, meta, action = "item") {
   return `
     <button type="button" class="nc2073-quick" data-nc-action="${action}"
       data-item-id="${item.id}"
-      ${action === "weapon" ? 'title="Клик: обычная атака · Shift: преимущество · Alt: помеха"' : ""}>
+      ${action === "weapon" ? 'title="Нативная атака Daggerheart: кости дуальности"' : ""}>
       <img src="${escapeHtml(item.img)}" alt="">
       <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(meta)}</small></span>
       <b>${String(index).padStart(2, "0")}</b>
@@ -528,6 +619,11 @@ function implantList(items, editable) {
               <small>${escapeHtml(zone)} · нагрузка 1</small>
               <span>${escapeHtml(itemDescription(item))}</span>
             </span>
+          </button>
+          <button type="button" class="nc2073-action nc2073-action--duality"
+            data-nc-action="duality" data-item-id="${item.id}"
+            title="Использовать имплант с костями дуальности">
+            <i class="fa-solid fa-dice-d12"></i><span>2d12</span>
           </button>
           <label class="nc2073-switch">
             <input type="checkbox" data-nc-action="implant" data-item-id="${item.id}"
@@ -641,6 +737,8 @@ function itemSection(title, content) {
 }
 
 function setActiveTab(panel, tab) {
+  if (!panel || !TAB_DEFINITIONS.some(entry => entry.id === tab)) return;
+  ACTIVE_TABS.set(panel.dataset.ncActorId, tab);
   panel.querySelectorAll("[data-nc-tab]").forEach(element => {
     element.classList.toggle("is-active", element.dataset.ncTab === tab);
   });
@@ -648,6 +746,284 @@ function setActiveTab(panel, tab) {
     const active = button.dataset.ncTabTarget === tab;
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-selected", String(active));
+  });
+}
+
+function wizardDocumentSource(document) {
+  const source = document.toObject();
+  delete source._id;
+  delete source._stats;
+  delete source.folder;
+  delete source.ownership;
+  return source;
+}
+
+function choiceKind(item) {
+  return ncFlag(item, "kind");
+}
+
+function isWizardChoiceItem(item) {
+  return ["class", "subclass", "class-feature", "faction", "faction-feature"].includes(
+    choiceKind(item)
+  );
+}
+
+async function characterPackDocuments() {
+  const pack = game.packs.get(`${MODULE_ID}.${ITEM_PACK_ID}`);
+  if (!pack) throw new Error("Компендиум Night City 2073 не найден.");
+  return pack.getDocuments();
+}
+
+function wizardChoiceDescription(item) {
+  const direction = ncFlag(item, "direction");
+  const description = itemDescription(item);
+  return [direction, description].filter(Boolean).join(" · ").slice(0, 230);
+}
+
+function choiceDialog({
+  title,
+  step,
+  lead,
+  items,
+  multiple = false,
+  minimum = 1,
+  maximum = 1,
+  confirmLabel = "Далее"
+}) {
+  if (typeof Dialog !== "function") {
+    ui.notifications.error("В этой установке Foundry недоступно системное окно выбора.");
+    return Promise.resolve(null);
+  }
+
+  const inputType = multiple ? "checkbox" : "radio";
+  const name = `nc2073-choice-${foundry.utils.randomID(6)}`;
+  const content = `
+    <div class="nc2073-wizard">
+      <div class="nc2073-wizard__step">${escapeHtml(step)}</div>
+      <p>${escapeHtml(lead)}</p>
+      <div class="nc2073-wizard__choices">
+        ${items
+          .map(
+            item => `
+              <label class="nc2073-wizard__choice">
+                <input type="${inputType}" name="${name}" value="${item.id}">
+                <img src="${escapeHtml(item.img)}" alt="">
+                <span>
+                  <strong>${escapeHtml(item.name)}</strong>
+                  <small>${escapeHtml(wizardChoiceDescription(item))}</small>
+                </span>
+                <i class="fa-solid fa-check"></i>
+              </label>
+            `
+          )
+          .join("")}
+      </div>
+      <div class="nc2073-wizard__counter" data-nc-wizard-counter>
+        Выбрано 0${multiple ? ` из ${maximum}` : ""}
+      </div>
+    </div>
+  `;
+
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const dialog = new Dialog({
+      title,
+      content,
+      buttons: {
+        cancel: {
+          icon: '<i class="fa-solid fa-xmark"></i>',
+          label: "Отмена",
+          callback: () => finish(null)
+        },
+        next: {
+          icon: '<i class="fa-solid fa-arrow-right"></i>',
+          label: confirmLabel,
+          callback: html => {
+            const root = htmlElement(html);
+            const values = Array.from(
+              root?.querySelectorAll(`input[name="${name}"]:checked`) ?? []
+            ).map(input => input.value);
+            if (values.length < minimum || values.length > maximum) {
+              ui.notifications.warn(
+                multiple
+                  ? `Нужно выбрать ровно ${minimum} способности.`
+                  : "Сначала выберите один вариант."
+              );
+              finish(null);
+              return;
+            }
+            finish(values);
+          }
+        }
+      },
+      default: "next",
+      render: html => {
+        const root = htmlElement(html);
+        if (!root) return;
+        const inputs = Array.from(root.querySelectorAll(`input[name="${name}"]`));
+        const windowRoot = root.closest(".app, .window-app");
+        const nextButton = windowRoot?.querySelector('[data-button="next"]');
+        const counter = root.querySelector("[data-nc-wizard-counter]");
+        const update = () => {
+          const selected = inputs.filter(input => input.checked);
+          if (counter) {
+            counter.textContent = `Выбрано ${selected.length}${multiple ? ` из ${maximum}` : ""}`;
+          }
+          if (nextButton) {
+            nextButton.disabled = selected.length < minimum || selected.length > maximum;
+          }
+          if (multiple) {
+            const atMaximum = selected.length >= maximum;
+            for (const input of inputs) input.disabled = atMaximum && !input.checked;
+          }
+        };
+        root.addEventListener("change", update);
+        update();
+      },
+      close: () => finish(null)
+    });
+    dialog.render(true);
+  });
+}
+
+async function applyCharacterWizard(actor, selection) {
+  const previousItems = actor.items.filter(isWizardChoiceItem);
+  const previousSources = previousItems.map(item => item.toObject());
+  const primaryDocuments = [selection.classItem, selection.subclassItem, selection.factionItem];
+  const featureDocuments = [
+    selection.baseFeature,
+    ...selection.abilities,
+    selection.factionFeature
+  ].filter(Boolean);
+
+  try {
+    if (previousItems.length) {
+      await actor.deleteEmbeddedDocuments("Item", previousItems.map(item => item.id));
+    }
+    await actor.createEmbeddedDocuments(
+      "Item",
+      primaryDocuments.map(wizardDocumentSource)
+    );
+
+    // Some Daggerheart sheets materialize linked features automatically. Only
+    // create the feature cards that are still absent after class/faction import.
+    const missingFeatures = featureDocuments.filter(document => {
+      const kind = choiceKind(document);
+      return !actor.items.some(
+        item => choiceKind(item) === kind && item.name === document.name
+      );
+    });
+    if (missingFeatures.length) {
+      await actor.createEmbeddedDocuments(
+        "Item",
+        missingFeatures.map(wizardDocumentSource)
+      );
+    }
+    await actor.setFlag(FLAG_SCOPE, "wizardComplete", true);
+    ui.notifications.info(
+      `${actor.name}: ${selection.classItem.name}, ${selection.subclassItem.name}, две способности и фракция добавлены.`
+    );
+  } catch (error) {
+    console.error(`${MODULE_ID} | Не удалось применить мастер создания`, error);
+    const currentChoices = actor.items.filter(isWizardChoiceItem);
+    if (currentChoices.length) {
+      await actor.deleteEmbeddedDocuments("Item", currentChoices.map(item => item.id));
+    }
+    if (previousSources.length) {
+      await actor.createEmbeddedDocuments("Item", previousSources, { keepId: true });
+    }
+    ui.notifications.error("Не удалось применить выборы. Предыдущее состояние восстановлено.");
+  }
+}
+
+async function runCharacterWizard(actor) {
+  if (!actor?.isOwner) return ui.notifications.warn("Для изменения персонажа нужны права владельца.");
+
+  let documents;
+  try {
+    documents = await characterPackDocuments();
+  } catch (error) {
+    console.error(`${MODULE_ID} | ${error.message}`, error);
+    return ui.notifications.error(error.message);
+  }
+
+  const hasPrevious = actor.items.some(isWizardChoiceItem);
+  const classItems = documents
+    .filter(item => choiceKind(item) === "class")
+    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+  const classChoice = await choiceDialog({
+    title: "Создание персонажа · Класс",
+    step: "Шаг 1 из 4",
+    lead: hasPrevious
+      ? "Выберите класс. После завершения всех шагов прежние выборы класса, подкласса, способностей и фракции будут заменены."
+      : "Выберите основной класс персонажа.",
+    items: classItems
+  });
+  if (!classChoice) return;
+  const classItem = classItems.find(item => item.id === classChoice[0]);
+  const classSlug = ncFlag(classItem, "slug");
+
+  const subclassItems = documents
+    .filter(item => choiceKind(item) === "subclass" && ncFlag(item, "classSlug") === classSlug)
+    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+  const subclassChoice = await choiceDialog({
+    title: "Создание персонажа · Подкласс",
+    step: "Шаг 2 из 4",
+    lead: `Для класса «${classItem.name}» доступны два направления.`,
+    items: subclassItems
+  });
+  if (!subclassChoice) return;
+  const subclassItem = subclassItems.find(item => item.id === subclassChoice[0]);
+
+  const classFeatures = documents
+    .filter(item => choiceKind(item) === "class-feature" && ncFlag(item, "classSlug") === classSlug)
+    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+  const baseFeature = classFeatures.find(item => ncFlag(item, "direction") === "Базовая");
+  const abilityItems = classFeatures.filter(item => ncFlag(item, "direction") !== "Базовая");
+  const abilityChoice = await choiceDialog({
+    title: "Создание персонажа · Способности",
+    step: "Шаг 3 из 4",
+    lead: `Базовая способность «${baseFeature?.name ?? "—"}» добавится автоматически. Выберите ровно две дополнительные способности.`,
+    items: abilityItems,
+    multiple: true,
+    minimum: 2,
+    maximum: 2
+  });
+  if (!abilityChoice) return;
+  const abilities = abilityChoice
+    .map(id => abilityItems.find(item => item.id === id))
+    .filter(Boolean);
+
+  const factionItems = documents
+    .filter(item => choiceKind(item) === "faction")
+    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+  const factionChoice = await choiceDialog({
+    title: "Создание персонажа · Фракция",
+    step: "Шаг 4 из 4",
+    lead: `Выбрано: ${classItem.name} / ${subclassItem.name} / ${abilities.map(item => item.name).join(", ")}. Теперь выберите фракцию.`,
+    items: factionItems,
+    confirmLabel: "Применить"
+  });
+  if (!factionChoice) return;
+  const factionItem = factionItems.find(item => item.id === factionChoice[0]);
+  const factionFeature = documents.find(
+    item =>
+      choiceKind(item) === "faction-feature" &&
+      ncFlag(item, "factionSlug") === ncFlag(factionItem, "slug")
+  );
+
+  await applyCharacterWizard(actor, {
+    classItem,
+    subclassItem,
+    baseFeature,
+    abilities,
+    factionItem,
+    factionFeature
   });
 }
 
@@ -700,6 +1076,7 @@ function buildPanel(actor) {
   const level = currentLevel(actor);
   const recordId = `NC-${actor.id.slice(0, 4).toUpperCase()}-${actor.id.slice(-6).toUpperCase()}`;
   const identityItems = [classItem, subclassItem, factionItem, ancestryItem].filter(Boolean);
+  const activeTab = ACTIVE_TABS.get(actor.id) ?? "properties";
   const cpWarning =
     cp.value >= cp.max
       ? `<div class="nc2073-warning">Предел Киберпсихоза достигнут.</div>`
@@ -712,12 +1089,24 @@ function buildPanel(actor) {
       return `
         <button type="button" class="nc2073-trait ${trait.className}"
           data-nc-action="trait" data-trait="${key}"
-          title="Клик: обычная проверка · Shift: преимущество · Alt: помеха">
+          title="Проверка дуальности Daggerheart">
           <span>${trait.label}</span><strong>${prefix}${value}</strong>
         </button>
       `;
     })
     .join("");
+
+  const tabButtons = TAB_DEFINITIONS.map(
+    tab => `
+      <button type="button" class="${activeTabClass(activeTab, tab.id)}"
+        data-nc-action="tab" data-nc-tab-target="${tab.id}"
+        aria-label="${escapeHtml(tab.label)}" title="${escapeHtml(tab.label)}"
+        aria-selected="${tabSelected(activeTab, tab.id)}">
+        <i class="fa-solid ${tab.icon}" aria-hidden="true"></i>
+        <span class="nc2073-sr-only">${escapeHtml(tab.label)}</span>
+      </button>
+    `
+  ).join("");
 
   return `
     <section class="nc2073-panel" data-nc-actor-id="${actor.id}">
@@ -773,11 +1162,7 @@ function buildPanel(actor) {
 
       <main class="nc2073-main">
         <nav class="nc2073-tabs" aria-label="Разделы электронного паспорта">
-          <button type="button" class="is-active" data-nc-action="tab" data-nc-tab-target="properties" aria-selected="true">Свойства</button>
-          <button type="button" data-nc-action="tab" data-nc-tab-target="implants" aria-selected="false">Импланты</button>
-          <button type="button" data-nc-action="tab" data-nc-tab-target="inventory" aria-selected="false">Инвентарь</button>
-          <button type="button" data-nc-action="tab" data-nc-tab-target="bio" aria-selected="false">Биография</button>
-          <button type="button" data-nc-action="tab" data-nc-tab-target="effects" aria-selected="false">Эффекты</button>
+          ${tabButtons}
         </nav>
 
         <header class="nc2073-identity">
@@ -791,7 +1176,14 @@ function buildPanel(actor) {
               ${identityChip(ancestryItem, "Происхождение не выбрано")}
             </div>
           </div>
-          <div class="nc2073-level"><span>Уровень</span><strong>${level}</strong></div>
+          <div class="nc2073-identity-actions">
+            <button type="button" class="nc2073-wizard-button" data-nc-action="wizard"
+              ${editable ? "" : "disabled"}
+              title="Пошаговый выбор класса, подкласса, двух способностей и фракции">
+              <i class="fa-solid fa-user-gear"></i><span>Конструктор</span>
+            </button>
+            <div class="nc2073-level"><span>Уровень</span><strong>${level}</strong></div>
+          </div>
         </header>
 
         <section class="nc2073-resources">
@@ -800,10 +1192,6 @@ function buildPanel(actor) {
             <div class="nc2073-resource nc2073-resource--number">
               <div class="nc2073-track-head"><span>Уклонение</span><strong>${actorEvasion(actor)}</strong></div>
               <small>Порог попадания</small>
-            </div>
-            <div class="nc2073-resource nc2073-resource--number">
-              <div class="nc2073-track-head"><span>Эдди</span><strong>${eddiesValue(actor).toLocaleString("ru-RU")}</strong></div>
-              <small>Доступный баланс</small>
             </div>
             <div class="nc2073-resource nc2073-thresholds">
               <div class="nc2073-track-head"><span>Пороги урона</span><i class="fa-solid fa-wave-square"></i></div>
@@ -821,7 +1209,7 @@ function buildPanel(actor) {
         </section>
 
         <section class="nc2073-content">
-          <div class="nc2073-tab is-active" data-nc-tab="properties">
+          <div class="nc2073-tab ${activeTabClass(activeTab, "properties")}" data-nc-tab="properties">
             <h3>Характеристики</h3>
             <div class="nc2073-traits">
               ${traitButtons}
@@ -843,12 +1231,18 @@ function buildPanel(actor) {
             </div>
           </div>
 
-          <div class="nc2073-tab" data-nc-tab="implants">
+          <div class="nc2073-tab ${activeTabClass(activeTab, "implants")}" data-nc-tab="implants">
             <div class="nc2073-tab-head"><h3>Импланты</h3><span>${installed}/${implants.length} включено</span></div>
             <div class="nc2073-card-list nc2073-card-list--wide">${implantList(implants, editable)}</div>
           </div>
 
-          <div class="nc2073-tab" data-nc-tab="inventory">
+          <div class="nc2073-tab ${activeTabClass(activeTab, "inventory")}" data-nc-tab="inventory">
+            <div class="nc2073-wallet">
+              <span><i class="fa-solid fa-coins"></i> Эдди</span>
+              <strong>${eddiesValue(actor).toLocaleString("ru-RU")}</strong>
+              <button type="button" data-nc-action="eddies" ${editable ? "" : "disabled"}
+                title="Изменить баланс эдди"><i class="fa-solid fa-pen"></i></button>
+            </div>
             <div class="nc2073-section-grid">
               ${itemSection("Оружие", inventoryList(weapons, "Перетащите оружие из компендиума.", { weapons: true }))}
               ${itemSection("Расходники", inventoryList(consumables, "Расходников нет."))}
@@ -856,7 +1250,7 @@ function buildPanel(actor) {
             </div>
           </div>
 
-          <div class="nc2073-tab" data-nc-tab="bio">
+          <div class="nc2073-tab ${activeTabClass(activeTab, "bio")}" data-nc-tab="bio">
             <div class="nc2073-bio">${stripHtml(biography) ? escapeHtml(stripHtml(biography)) : "Биография персонажа пока не заполнена."}</div>
             <div class="nc2073-data-grid">
               <div><span>Класс</span><strong>${escapeHtml(classItem?.name ?? "—")}</strong></div>
@@ -866,7 +1260,7 @@ function buildPanel(actor) {
             </div>
           </div>
 
-          <div class="nc2073-tab" data-nc-tab="effects">
+          <div class="nc2073-tab ${activeTabClass(activeTab, "effects")}" data-nc-tab="effects">
             <div class="nc2073-data-list">${effectList(actor)}</div>
           </div>
         </section>
@@ -894,7 +1288,7 @@ async function handlePanelClick(event, actor) {
   }
 
   if (action === "trait") {
-    await rollTrait(actor, control.dataset.trait, rollModeFromEvent(event));
+    await rollTrait(actor, control.dataset.trait);
     return;
   }
 
@@ -914,7 +1308,12 @@ async function handlePanelClick(event, actor) {
   }
 
   if (action === "weapon") {
-    await rollWeapon(actor, actor.items.get(control.dataset.itemId), rollModeFromEvent(event));
+    await rollWeapon(actor, actor.items.get(control.dataset.itemId));
+    return;
+  }
+
+  if (action === "duality") {
+    await rollItemDuality(actor, actor.items.get(control.dataset.itemId));
     return;
   }
 
@@ -932,6 +1331,16 @@ async function handlePanelClick(event, actor) {
     if (!actor.isOwner) return;
     const value = window.prompt("Позывной персонажа", actorCallsign(actor) === "—" ? "" : actorCallsign(actor));
     if (value !== null) await actor.setFlag(FLAG_SCOPE, "callsign", value.trim() || "—");
+    return;
+  }
+
+  if (action === "wizard") {
+    await runCharacterWizard(actor);
+    return;
+  }
+
+  if (action === "eddies") {
+    await editEddies(actor);
     return;
   }
 
@@ -960,15 +1369,28 @@ async function injectPanel(app, html) {
   if (!game.settings.get(MODULE_ID, "showCharacterPanel")) return;
   const actor = actorFromApplication(app);
   if (!actor || actor.type !== "character") return;
-  const root = htmlElement(html);
-  if (!root || root.querySelector(".nc2073-panel")) return;
+  const serial = (INJECTION_SERIAL.get(app) ?? 0) + 1;
+  INJECTION_SERIAL.set(app, serial);
 
   await recalculateCyberpsychosis(actor, { render: false });
+  if (INJECTION_SERIAL.get(app) !== serial) return;
+
+  const suppliedRoot = htmlElement(html);
+  const applicationRoot =
+    htmlElement(app?.element) ??
+    suppliedRoot?.closest?.(".application, .window-app") ??
+    suppliedRoot;
+  if (!applicationRoot) return;
 
   const host =
-    root.querySelector(".window-content") ??
-    root.querySelector("form") ??
-    root;
+    (applicationRoot.matches?.(".window-content") ? applicationRoot : null) ??
+    applicationRoot.querySelector?.(".window-content") ??
+    applicationRoot.querySelector?.("form") ??
+    applicationRoot;
+
+  // Foundry 13 can emit both sheet-specific and ApplicationV2 render hooks for
+  // the same window. Always collapse them to one passport before insertion.
+  applicationRoot.querySelectorAll?.(".nc2073-panel").forEach(panel => panel.remove());
   host.classList.add("nc2073-passport-host");
   const wrapper = document.createElement("div");
   wrapper.innerHTML = buildPanel(actor);
@@ -1001,11 +1423,14 @@ Hooks.once("ready", async () => {
   const api = {
     selectedActor,
     openPanel,
+    rollDuality,
     rollTrait,
     rollLuck,
     rollDeathSave,
     rollWeapon,
+    rollItemDuality,
     rollWeaponDamage,
+    runCharacterWizard,
     recalculateCyberpsychosis,
     baseCyberpsychosisCapacity,
     cyberpsychosisCapacity,
