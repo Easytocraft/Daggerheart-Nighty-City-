@@ -1,5 +1,6 @@
 import { ClassicLevel } from "/tmp/voidborne-tools/node_modules/classic-level/index.js";
-import { readFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,24 +13,44 @@ function fail(message) {
 }
 
 async function readPack(relative, prefix) {
-  const db = new ClassicLevel(path.join(ROOT, relative), { valueEncoding: "utf8" });
-  await db.open();
+  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "nc2073-pack-"));
+  const source = path.join(ROOT, relative);
+  const copiedPack = path.join(temporaryRoot, "pack");
+  await cp(source, copiedPack, { recursive: true });
+  const db = new ClassicLevel(copiedPack, { valueEncoding: "utf8" });
   const documents = [];
   const folders = [];
-  for await (const [key, value] of db.iterator()) {
-    const parsed = JSON.parse(value);
-    if (String(key).startsWith("!folders!")) folders.push(parsed);
-    if (String(key).startsWith(`!${prefix}!`) && !String(key).includes(".")) documents.push(parsed);
+  try {
+    await db.open();
+    for await (const [key, value] of db.iterator()) {
+      const parsed = JSON.parse(value);
+      if (String(key).startsWith("!folders!")) folders.push(parsed);
+      if (String(key).startsWith(`!${prefix}!`) && !String(key).includes(".")) {
+        documents.push(parsed);
+      }
+    }
+  } finally {
+    if (db.status === "open") await db.close();
+    await rm(temporaryRoot, { recursive: true, force: true });
   }
-  await db.close();
   return { documents, folders };
+}
+
+async function walkFiles(directory) {
+  const files = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...(await walkFiles(target)));
+    else if (entry.isFile()) files.push(target);
+  }
+  return files;
 }
 
 const manifest = JSON.parse(await readFile(path.join(ROOT, "module.json"), "utf8"));
 if (manifest.id !== MODULE_ID) fail(`Unexpected module id: ${manifest.id}`);
 if (manifest.compatibility?.minimum !== "13.346") fail("Foundry minimum must be 13.346.");
 if (manifest.compatibility?.verified !== "13.351") fail("Foundry verified version must be 13.351.");
-if (manifest.compatibility?.maximum !== "13") fail("Foundry maximum must be 13.");
+if (manifest.compatibility?.maximum !== "13.999") fail("Foundry maximum must be 13.999.");
 const daggerheart = manifest.relationships?.systems?.find(system => system.id === "daggerheart");
 if (daggerheart?.compatibility?.verified !== "1.9.14") {
   fail("Daggerheart verified version must be 1.9.14.");
@@ -57,6 +78,15 @@ const classes = itemPack.documents.filter(document => document.type === "class")
 const features = itemPack.documents.filter(
   document => document.flags?.[MODULE_ID]?.kind === "class-feature"
 );
+const subclasses = itemPack.documents.filter(
+  document => document.flags?.[MODULE_ID]?.kind === "subclass"
+);
+const factions = itemPack.documents.filter(
+  document => document.flags?.[MODULE_ID]?.kind === "faction"
+);
+const factionFeatures = itemPack.documents.filter(
+  document => document.flags?.[MODULE_ID]?.kind === "faction-feature"
+);
 const weapons = itemPack.documents.filter(
   document => document.flags?.[MODULE_ID]?.kind === "weapon"
 );
@@ -69,13 +99,20 @@ const actualClassFeatures = features.filter(
 );
 
 if (classes.length !== 4) fail(`Expected 4 classes, got ${classes.length}.`);
+if (subclasses.length !== 8) fail(`Expected 8 subclasses, got ${subclasses.length}.`);
+if (factions.length !== 4) fail(`Expected 4 factions, got ${factions.length}.`);
+if (factionFeatures.length !== 4) {
+  fail(`Expected 4 faction features, got ${factionFeatures.length}.`);
+}
 if (actualClassFeatures.length !== 20) {
   fail(`Expected 20 class features (4 base + 16 choices), got ${actualClassFeatures.length}.`);
 }
 if (weapons.length !== 24) fail(`Expected 24 weapons, got ${weapons.length}.`);
 if (implants.length !== 11) fail(`Expected 11 implants, got ${implants.length}.`);
-if (rules.length !== 8) fail(`Expected 8 rule cards, got ${rules.length}.`);
-if (macroPack.documents.length !== 6) fail(`Expected 6 macros, got ${macroPack.documents.length}.`);
+if (rules.length !== 10) fail(`Expected 10 rule cards, got ${rules.length}.`);
+if (itemPack.documents.length !== 85) fail(`Expected 85 item documents, got ${itemPack.documents.length}.`);
+if (itemPack.folders.length !== 22) fail(`Expected 22 item folders, got ${itemPack.folders.length}.`);
+if (macroPack.documents.length !== 7) fail(`Expected 7 macros, got ${macroPack.documents.length}.`);
 
 for (const classItem of classes) {
   const slug = classItem.flags?.[MODULE_ID]?.slug;
@@ -85,6 +122,12 @@ for (const classItem of classes) {
   if (matching.length !== 5) {
     fail(`${classItem.name}: expected 5 linked/choice feature cards, got ${matching.length}.`);
   }
+  const matchingSubclasses = subclasses.filter(
+    subclass => subclass.flags?.[MODULE_ID]?.classSlug === slug
+  );
+  if (matchingSubclasses.length !== 2) {
+    fail(`${classItem.name}: expected 2 subclasses, got ${matchingSubclasses.length}.`);
+  }
   const baseRefs = classItem.system?.features ?? [];
   if (baseRefs.length !== 1) fail(`${classItem.name}: expected exactly one automatic base feature.`);
   for (const reference of baseRefs) {
@@ -93,6 +136,16 @@ for (const classItem of classes) {
     }
     const id = reference.item?.split(".").at(-1);
     if (!ids.has(id)) fail(`${classItem.name}: missing feature reference ${reference.item}.`);
+  }
+}
+
+for (const faction of factions) {
+  const slug = faction.flags?.[MODULE_ID]?.slug;
+  const matching = factionFeatures.filter(
+    feature => feature.flags?.[MODULE_ID]?.factionSlug === slug
+  );
+  if (matching.length !== 1) {
+    fail(`${faction.name}: expected exactly one faction feature, got ${matching.length}.`);
   }
 }
 
@@ -149,6 +202,35 @@ if (Object.keys(formulas).length !== 29) {
   fail(`weapon-formulas.json contains ${Object.keys(formulas).length} entries instead of 29.`);
 }
 
+const assetFiles = (await walkFiles(path.join(ROOT, "assets")))
+  .filter(file => file.endsWith(".webp"))
+  .map(file => path.relative(ROOT, file).split(path.sep).join("/"));
+if (assetFiles.length !== 51) fail(`Expected 51 WebP assets, got ${assetFiles.length}.`);
+const referencedAssets = new Set();
+for (const document of itemPack.documents) {
+  const prefix = `modules/${MODULE_ID}/`;
+  if (!document.img?.startsWith(prefix)) continue;
+  const relative = document.img.slice(prefix.length);
+  referencedAssets.add(relative);
+  try {
+    const info = await stat(path.join(ROOT, relative));
+    if (!info.isFile()) fail(`${document.name}: image path is not a file: ${document.img}.`);
+  } catch {
+    fail(`${document.name}: missing image ${document.img}.`);
+  }
+}
+if (referencedAssets.size !== 51) {
+  fail(`Expected 51 uniquely referenced module images, got ${referencedAssets.size}.`);
+}
+
+const script = await readFile(path.join(ROOT, "scripts", "night-city-2073.js"), "utf8");
+const renderHooks = script.match(/Hooks\.on\("renderApplicationV2"/g) ?? [];
+if (renderHooks.length !== 1) fail(`Expected one ApplicationV2 render hook, got ${renderHooks.length}.`);
+if (/Hooks\.on\("renderActorSheet/.test(script)) fail("Legacy actor-sheet render hook remains.");
+if (!script.includes("actor.diceRoll(config)")) fail("Native Daggerheart duality call is missing.");
+if (!script.includes("item.use(event)")) fail("Native Daggerheart item action call is missing.");
+if (!script.includes("nc2073-passport-host")) fail("Full-width passport host class is missing.");
+
 const forbiddenEnglish = /\b(Hope|Stress|Hit Points|Agility|Strength|Finesse|Instinct|Presence|Knowledge)\b/;
 for (const document of itemPack.documents) {
   const visible = `${document.name}\n${document.system?.description ?? ""}`;
@@ -165,6 +247,6 @@ if (errors.length) {
     `Items ${itemPack.documents.length}; folders ${itemPack.folders.length}; macros ${macroPack.documents.length}.`
   );
   console.log(
-    `Classes ${classes.length}; class features ${actualClassFeatures.length}; weapons ${weapons.length}; implants ${implants.length}; rules ${rules.length}.`
+    `Classes ${classes.length}; subclasses ${subclasses.length}; class features ${actualClassFeatures.length}; factions ${factions.length}; weapons ${weapons.length}; implants ${implants.length}; rules ${rules.length}; images ${assetFiles.length}.`
   );
 }

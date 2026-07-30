@@ -3,6 +3,7 @@ const FLAG_SCOPE = MODULE_ID;
 const ITEM_PACK_ID = "nc2073-items";
 const ACTIVE_TABS = new Map();
 const INJECTION_SERIAL = new WeakMap();
+const RESIZED_SHEETS = new WeakSet();
 
 const TRAITS = {
   strength: { label: "Сила", className: "" },
@@ -131,40 +132,55 @@ async function recalculateCyberpsychosis(actor, { render = true } = {}) {
 
 function resourceData(actor, key, fallbackMax = 0) {
   const resource = actor?.system?.resources?.[key] ?? {};
+  const rawMax = resource.max;
   return {
     value: Number(resource.value) || 0,
-    max: Number.isFinite(Number(resource.max)) ? Number(resource.max) : fallbackMax
+    max:
+      rawMax !== null && rawMax !== undefined && Number.isFinite(Number(rawMax))
+        ? Number(rawMax)
+        : fallbackMax
   };
-}
-
-async function changeResource(actor, key, delta) {
-  if (!actor?.isOwner) return;
-  const resource = resourceData(actor, key);
-  const next = clamp(resource.value + Number(delta), 0, Math.max(0, resource.max));
-  await actor.update({ [`system.resources.${key}.value`]: next });
 }
 
 function armorData(actor) {
-  const native = resourceData(actor, "armor");
+  const armorItem = actor?.system?.armor ?? null;
+  const nativeValue = Number(armorItem?.system?.marks?.value) || 0;
+  const nativeMax = Math.max(0, Number(actor?.system?.armorScore) || 0);
+  const subdermalInstalled = installedImplants(actor).some(
+    item => ncFlag(item, "slug") === "subdermal-armor"
+  );
+  const bonusMax = subdermalInstalled ? 2 : 0;
+  const storedBonus = Number(actor?.getFlag?.(FLAG_SCOPE, "subdermalArmorMarks"));
+  const bonusValue = clamp(Number.isFinite(storedBonus) ? storedBonus : 0, 0, bonusMax);
   return {
-    native,
-    value: native.value,
-    max: native.max
+    armorItem,
+    native: {
+      value: clamp(nativeValue, 0, nativeMax),
+      max: nativeMax
+    },
+    bonusMax,
+    bonusValue,
+    value: clamp(nativeValue, 0, nativeMax) + bonusValue,
+    max: nativeMax + bonusMax
   };
 }
 
-async function changeArmor(actor, delta) {
+async function setArmorValue(actor, requested) {
   if (!actor?.isOwner) return;
   const data = armorData(actor);
-  if (delta > 0) {
-    if (data.native.value < data.native.max && actor.modifyResource) {
-      await actor.modifyResource([{ key: "armor", value: 1 }]);
-    }
-    return;
-  }
+  const target = clamp(requested, 0, data.max);
+  const nativeTarget = Math.min(target, data.native.max);
+  const bonusTarget = Math.max(0, target - data.native.max);
 
-  if (data.native.value > 0 && actor.modifyResource) {
-    await actor.modifyResource([{ key: "armor", value: -1 }]);
+  if (nativeTarget !== data.native.value) {
+    if (data.armorItem?.update) {
+      await data.armorItem.update({ "system.marks.value": nativeTarget });
+    } else if (typeof actor.modifyResource === "function") {
+      await actor.modifyResource([{ key: "armor", value: nativeTarget - data.native.value }]);
+    }
+  }
+  if (bonusTarget !== data.bonusValue) {
+    await actor.setFlag(FLAG_SCOPE, "subdermalArmorMarks", bonusTarget);
   }
 }
 
@@ -188,19 +204,41 @@ async function rollD20(actor, label, modifier = 0, mode = "normal") {
   });
 }
 
-async function rollDuality(actor, trait, label = null) {
+async function rollDuality(actor, trait, label = null, event = {}) {
   actor ??= selectedActor();
   if (!actor) return ui.notifications.warn("Выберите токен или назначьте персонажа.");
   if (!TRAITS[trait]) return ui.notifications.warn("Для этой проверки не назначена характеристика.");
 
-  /*
-   * Daggerheart 1.9.14 owns the actual action-roll dialog, advantage/disadvantage,
-   * Drive/Fear result and resource automation. Keeping the native call here also
-   * means weapons, implants and abilities obey future world-level roll modifiers.
-   */
-  if (typeof actor.rollTrait === "function") return actor.rollTrait(trait);
+  if (typeof actor.diceRoll === "function") {
+    const rollLabel = label ?? TRAITS[trait].label;
+    const effects =
+      (await game.system?.api?.data?.actions?.actionsTypes?.base
+        ?.getEffects?.(actor)) ?? [];
+    const config = {
+      event,
+      title: `${rollLabel}: ${actor.name}`,
+      headerTitle: rollLabel,
+      effects,
+      roll: {
+        trait,
+        type: "trait"
+      },
+      hasRoll: true,
+      actionType: "action"
+    };
+    const result = await actor.diceRoll(config);
+    if (!result) return null;
+    const resourceUpdates = result.resourceUpdates ?? config.resourceUpdates;
+    const costs =
+      result.costs
+        ?.filter(cost => cost.enabled)
+        .map(cost => ({ ...cost, value: -cost.value, total: -cost.total })) ?? [];
+    if (costs.length) resourceUpdates?.addResources?.(costs);
+    await resourceUpdates?.updateResources?.();
+    return result;
+  }
 
-  // Safe fallback for an unusual sheet implementation without rollTrait().
+  // Fallback only for an incompatible Daggerheart installation without diceRoll().
   const modifier = Number(actor.system?.traits?.[trait]?.value) || 0;
   const sign = modifier >= 0 ? "+" : "-";
   const roll = await new Roll(
@@ -220,8 +258,8 @@ async function rollDuality(actor, trait, label = null) {
   });
 }
 
-async function rollTrait(actor, trait) {
-  return rollDuality(actor, trait, TRAITS[trait]?.label ?? trait);
+async function rollTrait(actor, trait, event = {}) {
+  return rollDuality(actor, trait, TRAITS[trait]?.label ?? trait, event);
 }
 
 function actorLuck(actor) {
@@ -257,7 +295,7 @@ async function rollDeathSave(actor) {
   });
 }
 
-async function rollWeapon(actor, item) {
+async function rollWeapon(actor, item, event = {}) {
   actor ??= selectedActor();
   if (!actor) return ui.notifications.warn("Выберите токен или назначьте персонажа.");
   item ??=
@@ -283,15 +321,15 @@ async function rollWeapon(actor, item) {
 
   // Native Daggerheart weapon actions are duality rolls and include the system's
   // action dialog, targets, modifiers, Drive/Fear outcome and damage workflow.
-  if (typeof item.use === "function") return item.use();
+  if (typeof item.use === "function") return item.use(event);
   const action = item.system?.actionsList?.[0] ?? item.system?.attack;
-  if (typeof action?.use === "function") return action.use();
+  if (typeof action?.use === "function") return action.use(event);
 
-  await rollDuality(actor, trait, `${item.name} · атака (${traitLabel})`);
+  await rollDuality(actor, trait, `${item.name} · атака (${traitLabel})`, event);
   return rollWeaponDamage(actor, item);
 }
 
-async function rollItemDuality(actor, item) {
+async function rollItemDuality(actor, item, event = {}) {
   actor ??= selectedActor();
   if (!actor) return ui.notifications.warn("Выберите токен или назначьте персонажа.");
   if (!item) return ui.notifications.warn("Карточка способности или импланта не найдена.");
@@ -300,7 +338,7 @@ async function rollItemDuality(actor, item) {
     isNightCityItem(item, "weapon") ||
     item.getFlag(FLAG_SCOPE, "integratedWeapon") === true
   ) {
-    return rollWeapon(actor, item);
+    return rollWeapon(actor, item, event);
   }
 
   const trait = item.getFlag(FLAG_SCOPE, "rollTrait");
@@ -308,7 +346,7 @@ async function rollItemDuality(actor, item) {
     item.sheet?.render?.(true);
     return ui.notifications.info(`${item.name}: это пассивная карточка без отдельной проверки.`);
   }
-  return rollDuality(actor, trait, `${item.name} · ${TRAITS[trait]?.label ?? trait}`);
+  return rollDuality(actor, trait, `${item.name} · ${TRAITS[trait]?.label ?? trait}`, event);
 }
 
 async function rollWeaponDamage(actor, item) {
@@ -323,6 +361,33 @@ async function rollWeaponDamage(actor, item) {
     speaker: ChatMessage.getSpeaker({ actor }),
     flavor: `${item.name} — урон ${formula}`
   });
+}
+
+async function toggleEquipment(actor, item) {
+  if (!actor?.isOwner || !item || !["armor", "weapon"].includes(item.type)) return;
+  const equipped = item.system?.equipped === true;
+  if (equipped) {
+    await item.update({ "system.equipped": false });
+    return;
+  }
+
+  if (item.type === "armor") {
+    const currentArmor = actor.system?.armor;
+    if (currentArmor && currentArmor.id !== item.id) {
+      await currentArmor.update({ "system.equipped": false });
+    }
+    await item.update({ "system.equipped": true });
+    return;
+  }
+
+  if (actor.effects?.find?.(effect => !effect.disabled && effect.type === "beastform")) {
+    return ui.notifications.warn("В форме зверя нельзя экипировать оружие.");
+  }
+  const unequipBeforeEquip = actor.system?.constructor?.unequipBeforeEquip;
+  if (typeof unequipBeforeEquip === "function") {
+    await unequipBeforeEquip.call(actor.system, item);
+  }
+  await item.update({ "system.equipped": true });
 }
 
 async function toggleImplant(actor, item, equipped) {
@@ -349,24 +414,11 @@ async function toggleImplant(actor, item, equipped) {
   }
 
   await item.setFlag(FLAG_SCOPE, "equipped", Boolean(equipped));
+  if (ncFlag(item, "slug") === "subdermal-armor" && !equipped) {
+    await actor.setFlag(FLAG_SCOPE, "subdermalArmorMarks", 0);
+  }
   await recalculateCyberpsychosis(actor);
   return true;
-}
-
-function resourceControl(actor, key, label, data, hint, editable) {
-  return `
-    <div class="nc2073-panel__resource">
-      <button type="button" class="nc2073-panel__step" data-nc-action="resource"
-        data-resource="${key}" data-delta="-1" ${editable ? "" : "disabled"}>−</button>
-      <div>
-        <span class="nc2073-panel__resource-name">${escapeHtml(label)}</span>
-        <div class="nc2073-panel__resource-value">${data.value}/${data.max}</div>
-        ${hint ? `<span class="nc2073-panel__resource-hint">${escapeHtml(hint)}</span>` : ""}
-      </div>
-      <button type="button" class="nc2073-panel__step" data-nc-action="resource"
-        data-resource="${key}" data-delta="1" ${editable ? "" : "disabled"}>+</button>
-    </div>
-  `;
 }
 
 function ncFlag(item, key) {
@@ -421,29 +473,6 @@ function damageThresholds(actor) {
     heavy: base.heavy + bonus,
     bonus
   };
-}
-
-function effectRows(actor) {
-  const effects = Array.from(actor.effects ?? []);
-  if (!effects.length) {
-    return `<div class="nc2073-panel__empty">На персонажа сейчас не действуют эффекты.</div>`;
-  }
-  return effects
-    .map(effect => {
-      const disabled = effect.disabled ? "отключён" : "активен";
-      const duration = effect.duration?.remaining
-        ? ` · осталось ${effect.duration.remaining}`
-        : "";
-      return `
-        <div class="nc2073-panel__item">
-          <span class="nc2073-panel__item-name">
-            ${escapeHtml(effect.name ?? effect.label ?? "Эффект")}
-            <span class="nc2073-panel__item-meta">${disabled}${duration}</span>
-          </span>
-        </div>
-      `;
-    })
-    .join("");
 }
 
 function eddiesValue(actor) {
@@ -510,7 +539,7 @@ function featureList(items, emptyText) {
     .join("");
 }
 
-function inventoryList(items, emptyText, { weapons = false } = {}) {
+function inventoryList(items, emptyText, { weapons = false, equipment = false } = {}) {
   if (!items.length) return `<div class="nc2073-empty">${escapeHtml(emptyText)}</div>`;
   return items
     .map(item => {
@@ -518,13 +547,19 @@ function inventoryList(items, emptyText, { weapons = false } = {}) {
       const description = itemDescription(item);
       const formula = ncFlag(item, "damageFormula");
       const range = ncFlag(item, "rangeLabel");
-      const meta = formula
-        ? `${formula}${range ? ` · ${range}` : ""}`
-        : quantity > 1
-          ? `x${quantity}`
-          : item.type ?? "предмет";
+      const equipped = item.system?.equipped === true;
+      const armorScore =
+        item.type === "armor" && Number.isFinite(Number(item.system?.baseScore))
+          ? `Броня ${Number(item.system.baseScore)}`
+          : null;
+      let meta = item.type ?? "предмет";
+      if (quantity > 1) meta = `x${quantity}`;
+      if (armorScore) meta = armorScore;
+      if (formula) meta = `${formula}${range ? ` · ${range}` : ""}`;
       return `
-        <div class="nc2073-card ${weapons ? "nc2073-card--weapon" : ""}">
+        <div class="nc2073-card ${weapons ? "nc2073-card--weapon" : ""} ${
+          equipped ? "is-equipped" : ""
+        }">
           <button type="button" class="nc2073-card__open"
             data-nc-action="item" data-item-id="${item.id}">
             <img src="${escapeHtml(item.img)}" alt="">
@@ -539,6 +574,15 @@ function inventoryList(items, emptyText, { weapons = false } = {}) {
               ? `<button type="button" class="nc2073-action"
                   data-nc-action="weapon" data-item-id="${item.id}"
                   title="Нативная атака Daggerheart: кости дуальности">Атака</button>`
+              : ""
+          }
+          ${
+            equipment
+              ? `<button type="button" class="nc2073-equip"
+                  data-nc-action="equip" data-item-id="${item.id}"
+                  title="${equipped ? "Снять" : "Экипировать"}">
+                  <i class="fa-solid ${equipped ? "fa-toggle-on" : "fa-toggle-off"}"></i>
+                </button>`
               : ""
           }
         </div>
@@ -568,6 +612,25 @@ function resourceTrack(key, label, data, icon, { editable = false, alert = false
         <strong>${value} / ${max}</strong>
       </div>
       <div class="nc2073-track">${markers || `<span class="nc2073-muted">нет ячеек</span>`}</div>
+    </div>
+  `;
+}
+
+function traitControl(key, trait, value, editable) {
+  const prefix = value >= 0 ? "+" : "";
+  return `
+    <div class="nc2073-trait ${trait.className}">
+      <button type="button" class="nc2073-trait__roll"
+        data-nc-action="trait" data-trait="${key}"
+        title="Проверка дуальности Daggerheart">
+        <span>${escapeHtml(trait.label)}</span><strong>${prefix}${value}</strong>
+      </button>
+      <span class="nc2073-trait__controls">
+        <button type="button" data-nc-action="trait-adjust" data-trait="${key}"
+          data-delta="-1" ${editable ? "" : "disabled"} aria-label="Уменьшить ${escapeHtml(trait.label)}">−</button>
+        <button type="button" data-nc-action="trait-adjust" data-trait="${key}"
+          data-delta="1" ${editable ? "" : "disabled"} aria-label="Увеличить ${escapeHtml(trait.label)}">+</button>
+      </span>
     </div>
   `;
 }
@@ -648,6 +711,15 @@ function effectList(actor) {
           <img src="${escapeHtml(effect.img ?? "icons/svg/aura.svg")}" alt="">
           <span><strong>${escapeHtml(effect.name ?? effect.label ?? "Эффект")}</strong>
           <small>${disabled}${duration}</small></span>
+          ${
+            actor.isOwner
+              ? `<button type="button" class="nc2073-effect-toggle"
+                  data-nc-action="effect-toggle" data-effect-id="${effect.id}"
+                  title="${effect.disabled ? "Включить эффект" : "Отключить эффект"}">
+                  <i class="fa-solid ${effect.disabled ? "fa-toggle-off" : "fa-toggle-on"}"></i>
+                </button>`
+              : ""
+          }
         </div>
       `;
     })
@@ -672,8 +744,7 @@ async function setResourceValue(actor, key, requested) {
   if (key === "armor") {
     const current = armorData(actor).value;
     const target = clamp(requested === current ? current - 1 : requested, 0, armorData(actor).max);
-    const delta = target - current;
-    if (delta && actor.modifyResource) await actor.modifyResource([{ key: "armor", value: delta }]);
+    await setArmorValue(actor, target);
     return;
   }
   const resource = resourceData(actor, key);
@@ -719,12 +790,57 @@ function selectedSubclass(actor) {
 
 function biographyText(actor) {
   return (
+    getPropertySafe(actor, "system.biography.background") ??
     getPropertySafe(actor, "system.biography.value") ??
     getPropertySafe(actor, "system.biography") ??
     getPropertySafe(actor, "system.description.value") ??
     getPropertySafe(actor, "system.description") ??
     ""
   );
+}
+
+function biographyPath(actor) {
+  if (getPropertySafe(actor, "system.biography.background") !== undefined) {
+    return "system.biography.background";
+  }
+  if (getPropertySafe(actor, "system.biography.value") !== undefined) {
+    return "system.biography.value";
+  }
+  return "system.biography.background";
+}
+
+async function saveBiography(actor, panel) {
+  if (!actor?.isOwner) return;
+  const input = panel?.querySelector?.("[data-nc-bio-input]");
+  if (!input) return;
+  const value = String(input.value ?? "").trim();
+  await actor.update({ [biographyPath(actor)]: value });
+  ui.notifications.info("Биография сохранена.");
+}
+
+async function editActorImage(actor) {
+  if (!actor?.isOwner) return;
+  const Picker = foundry.applications?.apps?.FilePicker?.implementation;
+  if (!Picker) return ui.notifications.error("Выбор изображения недоступен в этой установке Foundry.");
+  const picker = new Picker({
+    current: actor.img,
+    type: "image",
+    callback: async path => actor.update({ img: path })
+  });
+  return picker.browse();
+}
+
+async function editActorName(actor) {
+  if (!actor?.isOwner) return;
+  const requested = window.prompt("Имя персонажа", actor.name);
+  const name = requested?.trim();
+  if (name) await actor.update({ name });
+}
+
+async function adjustTrait(actor, trait, delta) {
+  if (!actor?.isOwner || !TRAITS[trait]) return;
+  const current = Number(actor.system?.traits?.[trait]?.value) || 0;
+  await actor.update({ [`system.traits.${trait}.value`]: clamp(current + Number(delta), -5, 10) });
 }
 
 function itemSection(title, content) {
@@ -771,7 +887,27 @@ function isWizardChoiceItem(item) {
 async function characterPackDocuments() {
   const pack = game.packs.get(`${MODULE_ID}.${ITEM_PACK_ID}`);
   if (!pack) throw new Error("Компендиум Night City 2073 не найден.");
-  return pack.getDocuments();
+  const documents = await pack.getDocuments();
+  const classes = documents.filter(item => choiceKind(item) === "class");
+  const subclasses = documents.filter(item => choiceKind(item) === "subclass");
+  const factions = documents.filter(item => choiceKind(item) === "faction");
+  const features = documents.filter(item => choiceKind(item) === "class-feature");
+  if (classes.length !== 4 || subclasses.length !== 8 || factions.length !== 4) {
+    throw new Error(
+      `Компендиум конструктора повреждён: классы ${classes.length}/4, подклассы ${subclasses.length}/8, фракции ${factions.length}/4.`
+    );
+  }
+  for (const classItem of classes) {
+    const slug = ncFlag(classItem, "slug");
+    const subclassCount = subclasses.filter(item => ncFlag(item, "classSlug") === slug).length;
+    const featureCount = features.filter(item => ncFlag(item, "classSlug") === slug).length;
+    if (subclassCount !== 2 || featureCount !== 5) {
+      throw new Error(
+        `${classItem.name}: ожидаются 2 подкласса и 5 способностей, найдено ${subclassCount} и ${featureCount}.`
+      );
+    }
+  }
+  return documents;
 }
 
 function wizardChoiceDescription(item) {
@@ -780,7 +916,7 @@ function wizardChoiceDescription(item) {
   return [direction, description].filter(Boolean).join(" · ").slice(0, 230);
 }
 
-function choiceDialog({
+async function choiceDialog({
   title,
   step,
   lead,
@@ -790,9 +926,14 @@ function choiceDialog({
   maximum = 1,
   confirmLabel = "Далее"
 }) {
-  if (typeof Dialog !== "function") {
-    ui.notifications.error("В этой установке Foundry недоступно системное окно выбора.");
-    return Promise.resolve(null);
+  const DialogV2 = foundry.applications?.api?.DialogV2;
+  if (!DialogV2?.wait) {
+    ui.notifications.error("Для конструктора требуется Foundry VTT 13 с DialogV2.");
+    return null;
+  }
+  if (!items.length) {
+    ui.notifications.error(`${title}: в компендиуме нет доступных вариантов.`);
+    return null;
   }
 
   const inputType = multiple ? "checkbox" : "radio";
@@ -819,82 +960,57 @@ function choiceDialog({
           .join("")}
       </div>
       <div class="nc2073-wizard__counter" data-nc-wizard-counter>
-        Выбрано 0${multiple ? ` из ${maximum}` : ""}
+        ${multiple ? `Выберите ровно ${maximum}` : "Выберите один вариант"}
       </div>
     </div>
   `;
 
-  return new Promise(resolve => {
-    let settled = false;
-    const finish = value => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
-    };
-    const dialog = new Dialog({
-      title,
+  while (true) {
+    const result = await DialogV2.wait({
+      window: { title },
+      classes: ["nc2073-wizard-dialog"],
+      position: { width: 720 },
       content,
-      buttons: {
-        cancel: {
-          icon: '<i class="fa-solid fa-xmark"></i>',
+      buttons: [
+        {
+          action: "cancel",
+          icon: "fa-solid fa-xmark",
           label: "Отмена",
-          callback: () => finish(null)
+          callback: () => null
         },
-        next: {
-          icon: '<i class="fa-solid fa-arrow-right"></i>',
+        {
+          action: "next",
+          icon: "fa-solid fa-arrow-right",
           label: confirmLabel,
-          callback: html => {
-            const root = htmlElement(html);
-            const values = Array.from(
-              root?.querySelectorAll(`input[name="${name}"]:checked`) ?? []
+          default: true,
+          callback: (_event, button) => {
+            return Array.from(
+              button.form?.querySelectorAll(`input[name="${name}"]:checked`) ?? []
             ).map(input => input.value);
-            if (values.length < minimum || values.length > maximum) {
-              ui.notifications.warn(
-                multiple
-                  ? `Нужно выбрать ровно ${minimum} способности.`
-                  : "Сначала выберите один вариант."
-              );
-              finish(null);
-              return;
-            }
-            finish(values);
           }
         }
-      },
-      default: "next",
-      render: html => {
-        const root = htmlElement(html);
-        if (!root) return;
-        const inputs = Array.from(root.querySelectorAll(`input[name="${name}"]`));
-        const windowRoot = root.closest(".app, .window-app");
-        const nextButton = windowRoot?.querySelector('[data-button="next"]');
-        const counter = root.querySelector("[data-nc-wizard-counter]");
-        const update = () => {
-          const selected = inputs.filter(input => input.checked);
-          if (counter) {
-            counter.textContent = `Выбрано ${selected.length}${multiple ? ` из ${maximum}` : ""}`;
-          }
-          if (nextButton) {
-            nextButton.disabled = selected.length < minimum || selected.length > maximum;
-          }
-          if (multiple) {
-            const atMaximum = selected.length >= maximum;
-            for (const input of inputs) input.disabled = atMaximum && !input.checked;
-          }
-        };
-        root.addEventListener("change", update);
-        update();
-      },
-      close: () => finish(null)
+      ],
+      rejectClose: false,
+      modal: true
     });
-    dialog.render(true);
-  });
+    if (result === null) return null;
+    const values = Array.isArray(result) ? result : [];
+    if (values.length >= minimum && values.length <= maximum) return values;
+    ui.notifications.warn(
+      multiple
+        ? `Нужно выбрать ровно ${minimum} способности.`
+        : "Сначала выберите один вариант."
+    );
+  }
 }
 
 async function applyCharacterWizard(actor, selection) {
   const previousItems = actor.items.filter(isWizardChoiceItem);
   const previousSources = previousItems.map(item => item.toObject());
-  const primaryDocuments = [selection.classItem, selection.subclassItem, selection.factionItem];
+  const previousTraits = Object.fromEntries(
+    Object.keys(TRAITS).map(key => [key, Number(actor.system?.traits?.[key]?.value) || 0])
+  );
+  const primaryDocuments = [selection.classItem, selection.subclassItem, selection.factionItem].filter(Boolean);
   const featureDocuments = [
     selection.baseFeature,
     ...selection.abilities,
@@ -924,7 +1040,15 @@ async function applyCharacterWizard(actor, selection) {
         missingFeatures.map(wizardDocumentSource)
       );
     }
+    const suggestedTraits = selection.classItem.system?.characterGuide?.suggestedTraits ?? {};
+    const traitUpdates = {};
+    for (const key of Object.keys(TRAITS)) {
+      const value = Number(suggestedTraits[key]);
+      if (Number.isFinite(value)) traitUpdates[`system.traits.${key}.value`] = value;
+    }
+    if (Object.keys(traitUpdates).length) await actor.update(traitUpdates);
     await actor.setFlag(FLAG_SCOPE, "wizardComplete", true);
+    await recalculateCyberpsychosis(actor, { render: false });
     ui.notifications.info(
       `${actor.name}: ${selection.classItem.name}, ${selection.subclassItem.name}, две способности и фракция добавлены.`
     );
@@ -937,6 +1061,11 @@ async function applyCharacterWizard(actor, selection) {
     if (previousSources.length) {
       await actor.createEmbeddedDocuments("Item", previousSources, { keepId: true });
     }
+    await actor.update(
+      Object.fromEntries(
+        Object.entries(previousTraits).map(([key, value]) => [`system.traits.${key}.value`, value])
+      )
+    );
     ui.notifications.error("Не удалось применить выборы. Предыдущее состояние восстановлено.");
   }
 }
@@ -966,6 +1095,7 @@ async function runCharacterWizard(actor) {
   });
   if (!classChoice) return;
   const classItem = classItems.find(item => item.id === classChoice[0]);
+  if (!classItem) return ui.notifications.error("Выбранный класс не найден.");
   const classSlug = ncFlag(classItem, "slug");
 
   const subclassItems = documents
@@ -979,6 +1109,7 @@ async function runCharacterWizard(actor) {
   });
   if (!subclassChoice) return;
   const subclassItem = subclassItems.find(item => item.id === subclassChoice[0]);
+  if (!subclassItem) return ui.notifications.error("Выбранный подкласс не найден.");
 
   const classFeatures = documents
     .filter(item => choiceKind(item) === "class-feature" && ncFlag(item, "classSlug") === classSlug)
@@ -1011,6 +1142,7 @@ async function runCharacterWizard(actor) {
   });
   if (!factionChoice) return;
   const factionItem = factionItems.find(item => item.id === factionChoice[0]);
+  if (!factionItem) return ui.notifications.error("Выбранная фракция не найдена.");
   const factionFeature = documents.find(
     item =>
       choiceKind(item) === "faction-feature" &&
@@ -1035,16 +1167,19 @@ function buildPanel(actor) {
   cp.max = cyberpsychosisCapacity(actor);
   const armor = armorData(actor);
   const implants = actor.items.filter(item => isNightCityItem(item, "implant"));
-  const weapons = actor.items.filter(
+  const inventoryWeapons = actor.items.filter(item => isNightCityItem(item, "weapon"));
+  const integratedWeapons = actor.items.filter(
     item =>
-      isNightCityItem(item, "weapon") ||
+      isNightCityItem(item, "implant") &&
       item.getFlag(FLAG_SCOPE, "integratedWeapon") === true
   );
-  const equippedWeapons = weapons.filter(
+  const attackWeapons = [...inventoryWeapons, ...integratedWeapons];
+  const equippedWeapons = attackWeapons.filter(
     item =>
       item.system?.equipped === true ||
       item.getFlag(FLAG_SCOPE, "equipped") === true
   );
+  const armorItems = actor.items.filter(item => item.type === "armor");
   const classItem = selectedClass(actor);
   const subclassItem = selectedSubclass(actor);
   const factionItem = actorFaction(actor);
@@ -1070,7 +1205,7 @@ function buildPanel(actor) {
   const installedItems = installedImplants(actor);
   const installed = installedItems.length;
   const baseCapacity = baseCyberpsychosisCapacity(actor);
-  const quickWeapon = equippedWeapons[0] ?? weapons[0] ?? null;
+  const quickWeapon = equippedWeapons[0] ?? inventoryWeapons[0] ?? integratedWeapons[0] ?? null;
   const quickImplant = installedItems[0] ?? implants[0] ?? null;
   const quickConsumable = consumables[0] ?? null;
   const level = currentLevel(actor);
@@ -1085,14 +1220,7 @@ function buildPanel(actor) {
   const traitButtons = Object.entries(TRAITS)
     .map(([key, trait]) => {
       const value = Number(actor.system?.traits?.[key]?.value) || 0;
-      const prefix = value >= 0 ? "+" : "";
-      return `
-        <button type="button" class="nc2073-trait ${trait.className}"
-          data-nc-action="trait" data-trait="${key}"
-          title="Проверка дуальности Daggerheart">
-          <span>${trait.label}</span><strong>${prefix}${value}</strong>
-        </button>
-      `;
+      return traitControl(key, trait, value, editable);
     })
     .join("");
 
@@ -1116,10 +1244,11 @@ function buildPanel(actor) {
           <i class="nc2073-live" title="AR-канал активен"></i>
         </div>
 
-        <button type="button" class="nc2073-portrait" data-nc-action="native"
-          title="Показать или скрыть системный лист Daggerheart">
+        <button type="button" class="nc2073-portrait" data-nc-action="avatar"
+          ${editable ? "" : "disabled"} title="Изменить портрет персонажа">
           <img src="${escapeHtml(actor.img)}" alt="${escapeHtml(actor.name)}">
           <span class="nc2073-scan"></span>
+          <span class="nc2073-portrait-edit"><i class="fa-solid fa-camera"></i></span>
         </button>
 
         <div class="nc2073-mini-grid">
@@ -1168,7 +1297,10 @@ function buildPanel(actor) {
         <header class="nc2073-identity">
           <div>
             <div class="nc2073-eyebrow"><span>Персональная запись // Проверена</span><span>AR LINK 100%</span></div>
-            <h2>${escapeHtml(actor.name)}</h2>
+            <button type="button" class="nc2073-name" data-nc-action="name"
+              ${editable ? "" : "disabled"} title="Изменить имя персонажа">
+              <h2>${escapeHtml(actor.name)}</h2><i class="fa-solid fa-pen"></i>
+            </button>
             <div class="nc2073-chips">
               ${identityChip(classItem, "Класс не выбран")}
               ${identityChip(subclassItem, "Подкласс не выбран")}
@@ -1244,14 +1376,25 @@ function buildPanel(actor) {
                 title="Изменить баланс эдди"><i class="fa-solid fa-pen"></i></button>
             </div>
             <div class="nc2073-section-grid">
-              ${itemSection("Оружие", inventoryList(weapons, "Перетащите оружие из компендиума.", { weapons: true }))}
+              ${itemSection("Оружие", inventoryList(inventoryWeapons, "Перетащите оружие из компендиума.", { weapons: true, equipment: true }))}
+              ${itemSection("Броня", inventoryList(armorItems, "Экипированная броня отсутствует.", { equipment: true }))}
               ${itemSection("Расходники", inventoryList(consumables, "Расходников нет."))}
               ${itemSection("Добыча", inventoryList(loot, "Добычи нет."))}
             </div>
           </div>
 
           <div class="nc2073-tab ${activeTabClass(activeTab, "bio")}" data-nc-tab="bio">
-            <div class="nc2073-bio">${stripHtml(biography) ? escapeHtml(stripHtml(biography)) : "Биография персонажа пока не заполнена."}</div>
+            <div class="nc2073-bio-editor">
+              <textarea data-nc-bio-input ${editable ? "" : "disabled"}
+                placeholder="Биография персонажа">${escapeHtml(stripHtml(biography))}</textarea>
+              ${
+                editable
+                  ? `<button type="button" data-nc-action="bio-save">
+                      <i class="fa-solid fa-floppy-disk"></i> Сохранить биографию
+                    </button>`
+                  : ""
+              }
+            </div>
             <div class="nc2073-data-grid">
               <div><span>Класс</span><strong>${escapeHtml(classItem?.name ?? "—")}</strong></div>
               <div><span>Подкласс</span><strong>${escapeHtml(subclassItem?.name ?? "—")}</strong></div>
@@ -1269,7 +1412,7 @@ function buildPanel(actor) {
           <span>AUTH // ${recordId} · BIOMETRIC MATCH ACTIVE</span>
           <span class="nc2073-bars"></span>
           <button type="button" data-nc-action="death"><i class="fa-solid fa-skull"></i> Проверка смерти</button>
-          <button type="button" data-nc-action="native"><i class="fa-solid fa-sliders"></i> Системный лист</button>
+          <button type="button" data-nc-action="refresh"><i class="fa-solid fa-rotate"></i> Обновить</button>
         </footer>
       </main>
     </section>
@@ -1288,7 +1431,12 @@ async function handlePanelClick(event, actor) {
   }
 
   if (action === "trait") {
-    await rollTrait(actor, control.dataset.trait);
+    await rollTrait(actor, control.dataset.trait, event);
+    return;
+  }
+
+  if (action === "trait-adjust") {
+    await adjustTrait(actor, control.dataset.trait, Number(control.dataset.delta));
     return;
   }
 
@@ -1308,17 +1456,22 @@ async function handlePanelClick(event, actor) {
   }
 
   if (action === "weapon") {
-    await rollWeapon(actor, actor.items.get(control.dataset.itemId));
+    await rollWeapon(actor, actor.items.get(control.dataset.itemId), event);
     return;
   }
 
   if (action === "duality") {
-    await rollItemDuality(actor, actor.items.get(control.dataset.itemId));
+    await rollItemDuality(actor, actor.items.get(control.dataset.itemId), event);
     return;
   }
 
   if (action === "item") {
     actor.items.get(control.dataset.itemId)?.sheet?.render?.(true);
+    return;
+  }
+
+  if (action === "equip") {
+    await toggleEquipment(actor, actor.items.get(control.dataset.itemId));
     return;
   }
 
@@ -1334,6 +1487,16 @@ async function handlePanelClick(event, actor) {
     return;
   }
 
+  if (action === "avatar") {
+    await editActorImage(actor);
+    return;
+  }
+
+  if (action === "name") {
+    await editActorName(actor);
+    return;
+  }
+
   if (action === "wizard") {
     await runCharacterWizard(actor);
     return;
@@ -1344,17 +1507,22 @@ async function handlePanelClick(event, actor) {
     return;
   }
 
-  if (action === "native") {
-    control.closest(".nc2073-passport-host, .window-content, form")?.classList.toggle("nc2073-show-native");
+  if (action === "bio-save") {
+    await saveBiography(actor, control.closest(".nc2073-panel"));
     return;
   }
 
-  if (action === "resource") {
-    const delta = Number(control.dataset.delta);
-    const resource = control.dataset.resource;
-    if (resource === "armor") await changeArmor(actor, delta);
-    else await changeResource(actor, resource, delta);
+  if (action === "effect-toggle") {
+    const effect = actor.effects?.get?.(control.dataset.effectId);
+    if (actor.isOwner && effect) await effect.update({ disabled: !effect.disabled });
+    return;
   }
+
+  if (action === "refresh") {
+    actor.sheet?.render?.({ force: true });
+    return;
+  }
+
 }
 
 async function handlePanelChange(event, actor) {
@@ -1369,6 +1537,7 @@ async function injectPanel(app, html) {
   if (!game.settings.get(MODULE_ID, "showCharacterPanel")) return;
   const actor = actorFromApplication(app);
   if (!actor || actor.type !== "character") return;
+  if (actor.testUserPermission && !actor.testUserPermission(game.user, "OBSERVER")) return;
   const serial = (INJECTION_SERIAL.get(app) ?? 0) + 1;
   INJECTION_SERIAL.set(app, serial);
 
@@ -1383,28 +1552,36 @@ async function injectPanel(app, html) {
   if (!applicationRoot) return;
 
   const host =
+    htmlElement(app?.window?.content) ??
     (applicationRoot.matches?.(".window-content") ? applicationRoot : null) ??
-    applicationRoot.querySelector?.(".window-content") ??
-    applicationRoot.querySelector?.("form") ??
-    applicationRoot;
+    applicationRoot.querySelector?.(":scope > .window-content") ??
+    applicationRoot.querySelector?.(".window-content");
+  if (!host) return;
 
-  // Foundry 13 can emit both sheet-specific and ApplicationV2 render hooks for
-  // the same window. Always collapse them to one passport before insertion.
-  applicationRoot.querySelectorAll?.(".nc2073-panel").forEach(panel => panel.remove());
+  host.querySelectorAll?.(":scope > .nc2073-panel").forEach(panel => panel.remove());
+  applicationRoot.classList?.add("nc2073-window");
   host.classList.add("nc2073-passport-host");
+  host.dataset.ncActorId = actor.id;
   const wrapper = document.createElement("div");
   wrapper.innerHTML = buildPanel(actor);
   const panel = wrapper.firstElementChild;
   host.prepend(panel);
   panel.addEventListener("click", event => handlePanelClick(event, actor));
   panel.addEventListener("change", event => handlePanelChange(event, actor));
+
+  if (!RESIZED_SHEETS.has(app) && typeof app.setPosition === "function") {
+    RESIZED_SHEETS.add(app);
+    const width = Math.max(Number(app.position?.width) || 0, 1040);
+    const height = Math.max(Number(app.position?.height) || 0, 760);
+    app.setPosition({ width, height });
+  }
 }
 
 async function openPanel(actor) {
   actor ??= selectedActor();
   if (!actor) return ui.notifications.warn("Выберите токен или назначьте персонажа.");
   await recalculateCyberpsychosis(actor);
-  actor.sheet?.render?.(true);
+  actor.sheet?.render?.({ force: true });
 }
 
 Hooks.once("init", () => {
@@ -1448,8 +1625,6 @@ Hooks.once("ready", async () => {
   console.log(`${MODULE_ID} | Готово. API доступно как NightCity2073.`);
 });
 
-Hooks.on("renderActorSheet", injectPanel);
-Hooks.on("renderActorSheetV2", injectPanel);
 Hooks.on("renderApplicationV2", (app, html) => injectPanel(app, html));
 
 Hooks.on("createItem", async item => {
