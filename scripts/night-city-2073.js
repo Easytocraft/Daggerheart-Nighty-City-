@@ -4,6 +4,7 @@ const ITEM_PACK_ID = "nc2073-items";
 const ACTIVE_TABS = new Map();
 const INJECTION_SERIAL = new WeakMap();
 const RESIZED_SHEETS = new WeakSet();
+const QUICK_SLOT_COUNT = 3;
 
 const TRAITS = {
   strength: { label: "Сила", className: "" },
@@ -140,6 +141,11 @@ function resourceData(actor, key, fallbackMax = 0) {
         ? Number(rawMax)
         : fallbackMax
   };
+}
+
+function actorItem(actor, itemId) {
+  if (!actor || !itemId) return null;
+  return actor.items?.get?.(itemId) ?? actor.items?.find?.(item => item.id === itemId) ?? null;
 }
 
 function armorData(actor) {
@@ -506,7 +512,18 @@ async function editEddies(actor) {
   await actor.setFlag(FLAG_SCOPE, "eddies", Math.floor(amount));
 }
 
-function featureList(items, emptyText) {
+function quickPinButton(item, editable) {
+  if (!editable) return "";
+  return `
+    <button type="button" class="nc2073-pin"
+      data-nc-action="quick-pin" data-item-id="${item.id}"
+      title="Добавить в быстрый доступ" aria-label="Добавить ${escapeHtml(item.name)} в быстрый доступ">
+      <i class="fa-solid fa-thumbtack"></i>
+    </button>
+  `;
+}
+
+function featureList(items, emptyText, { quick = true, editable = false } = {}) {
   if (!items.length) return `<div class="nc2073-empty">${escapeHtml(emptyText)}</div>`;
   return items
     .map(item => {
@@ -533,13 +550,18 @@ function featureList(items, emptyText) {
                 </button>`
               : ""
           }
+          ${quick ? quickPinButton(item, editable) : ""}
         </div>
       `;
     })
     .join("");
 }
 
-function inventoryList(items, emptyText, { weapons = false, equipment = false } = {}) {
+function inventoryList(
+  items,
+  emptyText,
+  { weapons = false, equipment = false, quick = false, editable = false } = {}
+) {
   if (!items.length) return `<div class="nc2073-empty">${escapeHtml(emptyText)}</div>`;
   return items
     .map(item => {
@@ -585,6 +607,7 @@ function inventoryList(items, emptyText, { weapons = false, equipment = false } 
                 </button>`
               : ""
           }
+          ${quick ? quickPinButton(item, editable) : ""}
         </div>
       `;
     })
@@ -596,24 +619,48 @@ function resourceTrack(key, label, data, icon, { editable = false, alert = false
   const value = clamp(data.value, 0, max);
   const markers = Array.from({ length: max }, (_, index) => {
     const markerValue = index + 1;
+    const filled = markerValue <= value;
     return `
-      <button type="button" class="nc2073-marker ${alert ? "is-alert" : ""}"
+      <button type="button"
+        class="nc2073-marker ${alert ? "is-alert" : ""} ${filled ? "is-filled" : "is-empty"}"
         data-nc-action="resource-set" data-resource="${key}" data-value="${markerValue}"
-        data-on="${markerValue <= value}" ${editable ? "" : "disabled"}
-        aria-label="${escapeHtml(label)} ${markerValue}, ${markerValue <= value ? "заполнено" : "пусто"}">
+        data-on="${filled}" ${editable ? "" : "disabled"}
+        aria-pressed="${filled}" aria-label="${escapeHtml(label)} ${markerValue}, ${filled ? "заполнено" : "пусто"}">
         <i class="fa-solid ${icon}"></i>
       </button>
     `;
   }).join("");
   return `
-    <div class="nc2073-resource">
+    <div class="nc2073-resource" data-resource-track="${key}"
+      data-resource-label="${escapeHtml(label)}" data-current="${value}" data-max="${max}">
       <div class="nc2073-track-head">
         <span>${escapeHtml(label)}</span>
-        <strong>${value} / ${max}</strong>
+        <strong data-resource-counter>${value} / ${max}</strong>
       </div>
       <div class="nc2073-track">${markers || `<span class="nc2073-muted">нет ячеек</span>`}</div>
     </div>
   `;
+}
+
+function updateResourceTrackState(track, requested) {
+  if (!track) return;
+  const max = Math.max(0, Number(track.dataset.max) || 0);
+  const value = clamp(requested, 0, max);
+  const label = track.dataset.resourceLabel ?? "Ресурс";
+  track.dataset.current = String(value);
+  const counter = track.querySelector("[data-resource-counter]");
+  if (counter) counter.textContent = `${value} / ${max}`;
+  track.querySelectorAll(".nc2073-marker").forEach(marker => {
+    const filled = Number(marker.dataset.value) <= value;
+    marker.dataset.on = String(filled);
+    marker.classList.toggle("is-filled", filled);
+    marker.classList.toggle("is-empty", !filled);
+    marker.setAttribute("aria-pressed", String(filled));
+    marker.setAttribute(
+      "aria-label",
+      `${label} ${marker.dataset.value}, ${filled ? "заполнено" : "пусто"}`
+    );
+  });
 }
 
 function traitControl(key, trait, value, editable) {
@@ -645,24 +692,166 @@ function identityChip(item, fallback) {
   `;
 }
 
-function quickSlot(item, index, meta, action = "item") {
+function legacyQuickSlotIds(actor) {
+  const weapons = actor.items.filter(item => isNightCityItem(item, "weapon"));
+  const integratedWeapons = actor.items.filter(
+    item =>
+      isNightCityItem(item, "implant") &&
+      item.getFlag(FLAG_SCOPE, "integratedWeapon") === true
+  );
+  const equippedWeapons = [...weapons, ...integratedWeapons].filter(
+    item => item.system?.equipped === true || ncFlag(item, "equipped") === true
+  );
+  const implants = actor.items.filter(item => isNightCityItem(item, "implant"));
+  const installed = installedImplants(actor);
+  const consumables = actor.items.filter(
+    item => item.type === "consumable" || ncFlag(item, "kind") === "consumable"
+  );
+  return [
+    equippedWeapons[0] ?? weapons[0] ?? integratedWeapons[0] ?? null,
+    installed[0] ?? implants[0] ?? null,
+    consumables[0] ?? null
+  ].map(item => item?.id ?? null);
+}
+
+function quickSlotIds(actor) {
+  const stored = actor.getFlag?.(FLAG_SCOPE, "quickSlots");
+  if (!Array.isArray(stored)) return legacyQuickSlotIds(actor);
+  return Array.from({ length: QUICK_SLOT_COUNT }, (_, index) => {
+    const itemId = stored[index];
+    return typeof itemId === "string" && itemId ? itemId : null;
+  });
+}
+
+async function setQuickSlot(actor, index, itemId = null) {
+  if (!actor?.isOwner) return false;
+  const slot = clamp(index, 0, QUICK_SLOT_COUNT - 1);
+  if (itemId && !actorItem(actor, itemId)) {
+    ui.notifications.warn("Этот предмет больше не принадлежит персонажу.");
+    return false;
+  }
+  const slots = quickSlotIds(actor).map(currentId =>
+    itemId && currentId === itemId ? null : currentId
+  );
+  slots[slot] = itemId || null;
+  await actor.setFlag(FLAG_SCOPE, "quickSlots", slots);
+  return true;
+}
+
+function quickAccessCandidates(actor) {
+  return actor.items.filter(item => {
+    const kind = ncFlag(item, "kind");
+    return (
+      ["weapon", "implant", "class-feature", "faction-feature", "consumable"].includes(kind) ||
+      ["weapon", "consumable"].includes(item.type)
+    );
+  });
+}
+
+function quickItemMeta(item) {
+  if (!item) return "";
+  const kind = ncFlag(item, "kind");
+  if (kind === "weapon" || ncFlag(item, "integratedWeapon") === true) {
+    return `${ncFlag(item, "damageFormula") ?? "оружие"} · ${ncFlag(item, "weaponType") ?? "атака"}`;
+  }
+  if (kind === "implant") {
+    return `Имплант · ${ncFlag(item, "equipped") === true ? "включён" : "выключен"}`;
+  }
+  if (item.type === "consumable" || kind === "consumable") {
+    return `Расходник · ${itemQuantity(item)} шт.`;
+  }
+  return ncFlag(item, "direction") ?? "Способность";
+}
+
+async function chooseQuickItem(actor, index) {
+  if (!actor?.isOwner) return;
+  const items = quickAccessCandidates(actor);
+  const choice = await choiceDialog({
+    title: "Быстрый доступ",
+    step: `Слот ${Number(index) + 1} из ${QUICK_SLOT_COUNT}`,
+    lead: "Выберите оружие, имплант, способность или расходник.",
+    items,
+    confirmLabel: "Добавить"
+  });
+  if (!choice) return;
+  await setQuickSlot(actor, index, choice[0]);
+}
+
+async function chooseQuickSlot(actor, item) {
+  if (!actor?.isOwner || !item) return;
+  const slots = quickSlotIds(actor);
+  const emptyIndex = slots.findIndex(itemId => !itemId || !actorItem(actor, itemId));
+  if (emptyIndex >= 0) {
+    await setQuickSlot(actor, emptyIndex, item.id);
+    return;
+  }
+  const choices = slots.map((itemId, index) => {
+    const current = actorItem(actor, itemId);
+    return {
+      id: String(index),
+      name: `Слот ${index + 1}: ${current?.name ?? "свободен"}`,
+      img: current?.img ?? item.img,
+      system: { description: current ? `Заменить «${current.name}»` : "Свободный слот" },
+      getFlag: () => null
+    };
+  });
+  const choice = await choiceDialog({
+    title: "Быстрый доступ",
+    step: "Выбор слота",
+    lead: `Куда добавить «${item.name}»? Существующий предмет в слоте будет заменён.`,
+    items: choices,
+    confirmLabel: "Заменить"
+  });
+  if (!choice) return;
+  await setQuickSlot(actor, Number(choice[0]), item.id);
+}
+
+async function useQuickItem(actor, item, event = {}) {
+  if (!item) return ui.notifications.warn("Предмет быстрого доступа больше не существует.");
+  if (isNightCityItem(item, "weapon") || ncFlag(item, "integratedWeapon") === true) {
+    return rollWeapon(actor, item, event);
+  }
+  const kind = ncFlag(item, "kind");
+  if (["implant", "class-feature", "faction-feature"].includes(kind)) {
+    return rollItemDuality(actor, item, event);
+  }
+  if (typeof item.use === "function") return item.use(event);
+  item.sheet?.render?.(true);
+}
+
+function quickSlot(item, index, editable) {
+  const displayIndex = String(index + 1).padStart(2, "0");
   if (!item) {
     return `
-      <div class="nc2073-quick is-empty">
-        <span class="nc2073-quick__placeholder"><i class="fa-solid fa-plus"></i></span>
-        <span><strong>Свободный слот</strong><small>Добавьте предмет</small></span>
-        <b>${String(index).padStart(2, "0")}</b>
+      <div class="nc2073-quick is-empty" data-nc-quick-slot="${index}">
+        <button type="button" class="nc2073-quick__use"
+          data-nc-action="quick-add" data-nc-quick-slot="${index}" ${editable ? "" : "disabled"}>
+          <span class="nc2073-quick__placeholder"><i class="fa-solid fa-plus"></i></span>
+          <span><strong>Свободный слот</strong><small>Нажмите, чтобы выбрать</small></span>
+        </button>
+        <b>${displayIndex}</b>
       </div>
     `;
   }
   return `
-    <button type="button" class="nc2073-quick" data-nc-action="${action}"
-      data-item-id="${item.id}"
-      ${action === "weapon" ? 'title="Нативная атака Daggerheart: кости дуальности"' : ""}>
-      <img src="${escapeHtml(item.img)}" alt="">
-      <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(meta)}</small></span>
-      <b>${String(index).padStart(2, "0")}</b>
-    </button>
+    <div class="nc2073-quick" data-nc-quick-slot="${index}" data-item-id="${item.id}">
+      <button type="button" class="nc2073-quick__use"
+        data-nc-action="quick-use" data-item-id="${item.id}"
+        title="Использовать ${escapeHtml(item.name)}">
+        <img src="${escapeHtml(item.img)}" alt="">
+        <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(quickItemMeta(item))}</small></span>
+      </button>
+      ${
+        editable
+          ? `<button type="button" class="nc2073-quick__remove"
+              data-nc-action="quick-remove" data-nc-quick-slot="${index}"
+              title="Убрать из быстрого доступа" aria-label="Убрать ${escapeHtml(item.name)} из быстрого доступа">
+              <i class="fa-solid fa-xmark"></i>
+            </button>`
+          : ""
+      }
+      <b>${displayIndex}</b>
+    </div>
   `;
 }
 
@@ -688,6 +877,7 @@ function implantList(items, editable) {
             title="Использовать имплант с костями дуальности">
             <i class="fa-solid fa-dice-d12"></i><span>2d12</span>
           </button>
+          ${quickPinButton(item, editable)}
           <label class="nc2073-switch">
             <input type="checkbox" data-nc-action="implant" data-item-id="${item.id}"
               ${checked ? "checked" : ""} ${editable ? "" : "disabled"}>
@@ -740,16 +930,17 @@ function actorEvasion(actor) {
 }
 
 async function setResourceValue(actor, key, requested) {
-  if (!actor?.isOwner) return;
+  if (!actor?.isOwner) return null;
   if (key === "armor") {
     const current = armorData(actor).value;
     const target = clamp(requested === current ? current - 1 : requested, 0, armorData(actor).max);
     await setArmorValue(actor, target);
-    return;
+    return target;
   }
   const resource = resourceData(actor, key);
   const target = clamp(requested === resource.value ? resource.value - 1 : requested, 0, resource.max);
   await actor.update({ [`system.resources.${key}.value`]: target });
+  return target;
 }
 
 function normalizeMachineText(value) {
@@ -1173,12 +1364,6 @@ function buildPanel(actor) {
       isNightCityItem(item, "implant") &&
       item.getFlag(FLAG_SCOPE, "integratedWeapon") === true
   );
-  const attackWeapons = [...inventoryWeapons, ...integratedWeapons];
-  const equippedWeapons = attackWeapons.filter(
-    item =>
-      item.system?.equipped === true ||
-      item.getFlag(FLAG_SCOPE, "equipped") === true
-  );
   const armorItems = actor.items.filter(item => item.type === "armor");
   const classItem = selectedClass(actor);
   const subclassItem = selectedSubclass(actor);
@@ -1205,9 +1390,7 @@ function buildPanel(actor) {
   const installedItems = installedImplants(actor);
   const installed = installedItems.length;
   const baseCapacity = baseCyberpsychosisCapacity(actor);
-  const quickWeapon = equippedWeapons[0] ?? inventoryWeapons[0] ?? integratedWeapons[0] ?? null;
-  const quickImplant = installedItems[0] ?? implants[0] ?? null;
-  const quickConsumable = consumables[0] ?? null;
+  const quickItems = quickSlotIds(actor).map(itemId => actorItem(actor, itemId));
   const level = currentLevel(actor);
   const recordId = `NC-${actor.id.slice(0, 4).toUpperCase()}-${actor.id.slice(-6).toUpperCase()}`;
   const identityItems = [classItem, subclassItem, factionItem, ancestryItem].filter(Boolean);
@@ -1262,26 +1445,7 @@ function buildPanel(actor) {
 
         <div class="nc2073-quick-list">
           <h3>Быстрый доступ</h3>
-          ${quickSlot(
-            quickWeapon,
-            1,
-            quickWeapon
-              ? `${ncFlag(quickWeapon, "damageFormula") ?? "оружие"} · ${ncFlag(quickWeapon, "weaponType") ?? "атака"}`
-              : "",
-            "weapon"
-          )}
-          ${quickSlot(
-            quickImplant,
-            2,
-            quickImplant
-              ? `Имплант · ${ncFlag(quickImplant, "equipped") === true ? "включён" : "выключен"}`
-              : ""
-          )}
-          ${quickSlot(
-            quickConsumable,
-            3,
-            quickConsumable ? `Расходник · ${itemQuantity(quickConsumable)} шт.` : ""
-          )}
+          ${quickItems.map((item, index) => quickSlot(item, index, editable)).join("")}
         </div>
 
         <div class="nc2073-machine">
@@ -1356,10 +1520,10 @@ function buildPanel(actor) {
                 </span>
               </div>
             </div>
-            <div class="nc2073-section-grid">
-              ${itemSection("Класс, подкласс и фракция", featureList(identityItems, "Выборы персонажа ещё не добавлены."))}
-              ${itemSection("Активные способности", featureList(activeFeatures, "Выберите две классовые способности."))}
-              ${itemSection("Пассивные свойства", featureList(passiveFeatures, "Пассивные свойства пока не добавлены."))}
+            <div class="nc2073-section-grid nc2073-section-grid--properties">
+              ${itemSection("Класс, подкласс и фракция", featureList(identityItems, "Выборы персонажа ещё не добавлены.", { quick: false, editable }))}
+              ${itemSection("Активные способности", featureList(activeFeatures, "Выберите две классовые способности.", { editable }))}
+              ${itemSection("Пассивные свойства", featureList(passiveFeatures, "Пассивные свойства пока не добавлены.", { editable }))}
             </div>
           </div>
 
@@ -1376,9 +1540,9 @@ function buildPanel(actor) {
                 title="Изменить баланс эдди"><i class="fa-solid fa-pen"></i></button>
             </div>
             <div class="nc2073-section-grid">
-              ${itemSection("Оружие", inventoryList(inventoryWeapons, "Перетащите оружие из компендиума.", { weapons: true, equipment: true }))}
-              ${itemSection("Броня", inventoryList(armorItems, "Экипированная броня отсутствует.", { equipment: true }))}
-              ${itemSection("Расходники", inventoryList(consumables, "Расходников нет."))}
+              ${itemSection("Оружие", inventoryList(inventoryWeapons, "Перетащите оружие из компендиума.", { weapons: true, equipment: true, quick: true, editable }))}
+              ${itemSection("Броня", inventoryList(armorItems, "Экипированная броня отсутствует.", { equipment: true, editable }))}
+              ${itemSection("Расходники", inventoryList(consumables, "Расходников нет.", { quick: true, editable }))}
               ${itemSection("Добыча", inventoryList(loot, "Добычи нет."))}
             </div>
           </div>
@@ -1465,18 +1629,50 @@ async function handlePanelClick(event, actor) {
     return;
   }
 
+  if (action === "quick-use") {
+    await useQuickItem(actor, actorItem(actor, control.dataset.itemId), event);
+    return;
+  }
+
+  if (action === "quick-add") {
+    await chooseQuickItem(actor, Number(control.dataset.ncQuickSlot));
+    return;
+  }
+
+  if (action === "quick-remove") {
+    await setQuickSlot(actor, Number(control.dataset.ncQuickSlot), null);
+    return;
+  }
+
+  if (action === "quick-pin") {
+    await chooseQuickSlot(actor, actorItem(actor, control.dataset.itemId));
+    return;
+  }
+
   if (action === "item") {
-    actor.items.get(control.dataset.itemId)?.sheet?.render?.(true);
+    actorItem(actor, control.dataset.itemId)?.sheet?.render?.(true);
     return;
   }
 
   if (action === "equip") {
-    await toggleEquipment(actor, actor.items.get(control.dataset.itemId));
+    await toggleEquipment(actor, actorItem(actor, control.dataset.itemId));
     return;
   }
 
   if (action === "resource-set") {
-    await setResourceValue(actor, control.dataset.resource, Number(control.dataset.value));
+    const track = control.closest("[data-resource-track]");
+    const previous = Number(track?.dataset.current) || 0;
+    const requested = Number(control.dataset.value);
+    const optimistic = requested === previous ? previous - 1 : requested;
+    updateResourceTrackState(track, optimistic);
+    try {
+      const actual = await setResourceValue(actor, control.dataset.resource, requested);
+      if (actual !== null && track?.isConnected) updateResourceTrackState(track, actual);
+    } catch (error) {
+      if (track?.isConnected) updateResourceTrackState(track, previous);
+      console.error(`${MODULE_ID} | Не удалось изменить ресурс`, error);
+      ui.notifications.error("Не удалось изменить ресурс персонажа.");
+    }
     return;
   }
 
@@ -1612,7 +1808,9 @@ Hooks.once("ready", async () => {
     baseCyberpsychosisCapacity,
     cyberpsychosisCapacity,
     installedImplants,
-    toggleImplant
+    toggleImplant,
+    quickSlotIds,
+    setQuickSlot
   };
   game.modules.get(MODULE_ID).api = api;
   globalThis.NightCity2073 = api;
@@ -1644,9 +1842,17 @@ Hooks.on("updateItem", async (item, changes) => {
 });
 
 Hooks.on("deleteItem", async item => {
-  if (item.parent?.documentName === "Actor" && isNightCityItem(item, "implant")) {
-    await recalculateCyberpsychosis(item.parent);
+  const actor = item.parent?.documentName === "Actor" ? item.parent : null;
+  if (!actor) return;
+  const storedSlots = actor.getFlag?.(FLAG_SCOPE, "quickSlots");
+  if (Array.isArray(storedSlots) && storedSlots.includes(item.id)) {
+    await actor.setFlag(
+      FLAG_SCOPE,
+      "quickSlots",
+      storedSlots.map(itemId => (itemId === item.id ? null : itemId))
+    );
   }
+  if (isNightCityItem(item, "implant")) await recalculateCyberpsychosis(actor);
 });
 
 Hooks.on("updateActor", async (actor, changes, options) => {

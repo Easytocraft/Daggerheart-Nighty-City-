@@ -187,10 +187,12 @@
 }
 
 .nc2073-portrait img {
+  background: #000;
   border: 0;
   filter: grayscale(1) contrast(1.18) brightness(0.8);
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center center;
   width: 100%;
 }
 
@@ -303,13 +305,12 @@
 
 .nc2073-quick {
   align-items: center;
-  appearance: none;
   background: #050505;
   border: 1px solid #24080b;
   border-radius: 0;
   display: grid;
-  gap: 9px;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) 25px auto;
   margin: 0 0 5px;
   min-height: 50px;
   padding: 4px 7px 4px 4px;
@@ -317,16 +318,41 @@
   width: 100%;
 }
 
-button.nc2073-quick {
-  cursor: pointer;
+.nc2073-quick.is-empty {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
-button.nc2073-quick:hover {
+.nc2073-quick:hover {
   border-color: var(--nc-red);
   box-shadow: 0 0 8px rgba(255, 42, 53, 0.17);
 }
 
-.nc2073-quick img,
+.nc2073-quick__use {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 42px minmax(0, 1fr);
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.nc2073-quick__use:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.nc2073-quick__use:hover strong {
+  color: var(--nc-red-bright);
+}
+
+.nc2073-quick__use img,
 .nc2073-quick__placeholder {
   background: #000;
   border: 1px solid #390b0f;
@@ -342,17 +368,40 @@ button.nc2073-quick:hover {
   justify-content: center;
 }
 
-.nc2073-quick span:not(.nc2073-quick__placeholder) {
+.nc2073-quick__use > span:not(.nc2073-quick__placeholder) {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.nc2073-quick strong {
+.nc2073-quick__use strong {
+  color: var(--nc-white);
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.nc2073-quick__remove {
+  align-items: center;
+  appearance: none;
+  background: #0b0203;
+  border: 1px solid #35090d;
+  border-radius: 0;
+  color: #8b3137 !important;
+  cursor: pointer;
+  display: flex;
+  height: 25px;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  width: 25px;
+}
+
+.nc2073-quick__remove:hover {
+  border-color: var(--nc-red);
+  color: var(--nc-red-bright) !important;
+  box-shadow: 0 0 6px rgba(255, 42, 53, 0.28);
 }
 
 .nc2073-quick b {
@@ -658,7 +707,7 @@ button.nc2073-quick:hover {
   appearance: none;
   background: transparent;
   border: 0;
-  color: #3e3e3e;
+  color: #252525 !important;
   cursor: pointer;
   font-size: 11px;
   height: 15px;
@@ -668,14 +717,37 @@ button.nc2073-quick:hover {
   width: 15px;
 }
 
+.nc2073-marker i {
+  color: #252525 !important;
+  filter: none !important;
+  opacity: 0.55;
+  transition: color 100ms ease, filter 100ms ease, opacity 100ms ease, transform 100ms ease;
+}
+
+.nc2073-marker.is-filled,
 .nc2073-marker[data-on="true"] {
-  color: var(--nc-white);
+  color: var(--nc-white) !important;
   filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.4));
 }
 
+.nc2073-marker.is-filled i,
+.nc2073-marker[data-on="true"] i {
+  color: var(--nc-white) !important;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.7)) !important;
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.nc2073-marker.is-alert.is-filled,
 .nc2073-marker.is-alert[data-on="true"] {
-  color: var(--nc-red);
+  color: var(--nc-red-bright) !important;
   filter: drop-shadow(0 0 4px rgba(255, 42, 53, 0.7));
+}
+
+.nc2073-marker.is-alert.is-filled i,
+.nc2073-marker.is-alert[data-on="true"] i {
+  color: var(--nc-red-bright) !important;
+  filter: drop-shadow(0 0 4px rgba(255, 42, 53, 0.85)) !important;
 }
 
 .nc2073-marker:disabled {
@@ -872,6 +944,34 @@ button.nc2073-quick:hover {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.nc2073-section-grid--properties {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nc2073-section-grid--properties > .nc2073-section:first-child {
+  grid-column: 1 / -1;
+}
+
+.nc2073-section-grid--properties > .nc2073-section:first-child .nc2073-card-list {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.nc2073-section-grid--properties
+  > .nc2073-section:first-child
+  .nc2073-card--feature
+  .nc2073-card__open
+  > img {
+  flex-basis: 58px;
+  height: 58px;
+  width: 58px;
+}
+
+.nc2073-section-grid--properties
+  > .nc2073-section:first-child
+  .nc2073-card--feature {
+  min-height: 60px;
+}
+
 .nc2073-section {
   min-width: 0;
 }
@@ -974,6 +1074,40 @@ button.nc2073-card {
   overflow: hidden;
 }
 
+.nc2073-card--feature {
+  min-height: 90px;
+}
+
+.nc2073-card--feature .nc2073-card__open > img {
+  flex-basis: 88px;
+  height: 88px;
+  object-fit: contain;
+  width: 88px;
+}
+
+.nc2073-card--feature .nc2073-card__copy {
+  padding: 8px 9px;
+}
+
+.nc2073-card--feature .nc2073-card__copy strong {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  font-size: 14px;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.nc2073-card--feature .nc2073-card__copy small {
+  font-size: 10.5px;
+}
+
+.nc2073-card--feature .nc2073-card__copy > span {
+  -webkit-line-clamp: 3;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .nc2073-action {
   appearance: none;
   background: #0c0203;
@@ -1031,6 +1165,25 @@ button.nc2073-card {
 .nc2073-card.is-equipped .nc2073-equip {
   background: #170406;
   color: var(--nc-red-bright);
+}
+
+.nc2073-pin {
+  appearance: none;
+  background: #080808;
+  border: 0;
+  border-left: 1px solid #3f0b10;
+  border-radius: 0;
+  color: var(--nc-dim) !important;
+  cursor: pointer;
+  flex: 0 0 32px;
+  font-size: 11px;
+  margin: 0;
+  padding: 5px;
+}
+
+.nc2073-pin:hover {
+  background: #170406;
+  color: var(--nc-red-bright) !important;
 }
 
 .nc2073-card--implant.is-installed {
@@ -1468,6 +1621,10 @@ button.nc2073-card {
     grid-column: 1 / -1;
   }
 
+  .nc2073-section-grid--properties .nc2073-section:last-child {
+    grid-column: auto;
+  }
+
   .nc2073-traits {
     grid-template-columns: repeat(4, minmax(70px, 1fr));
   }
@@ -1504,6 +1661,14 @@ button.nc2073-card {
 
   .nc2073-section-grid .nc2073-section:last-child {
     grid-column: auto;
+  }
+
+  .nc2073-section-grid--properties > .nc2073-section:first-child {
+    grid-column: auto;
+  }
+
+  .nc2073-section-grid--properties > .nc2073-section:first-child .nc2073-card-list {
+    grid-template-columns: 1fr;
   }
 
   .nc2073-traits {
