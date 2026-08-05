@@ -287,7 +287,80 @@
 }
 
 .nc2073-quick-list {
+  border: 1px solid transparent;
+  display: flex;
+  flex: 1 1 140px;
+  flex-direction: column;
+  max-height: 330px;
   min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.nc2073-quick-list.is-dragover {
+  border-color: var(--nc-red);
+  box-shadow: inset 0 0 14px rgba(255, 42, 53, 0.18);
+}
+
+.nc2073-quick-head {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+}
+
+.nc2073-quick-head h3 span {
+  color: var(--nc-white);
+  font-size: 9px;
+  margin-left: 4px;
+}
+
+.nc2073-quick-head > button {
+  appearance: none;
+  background: #080808;
+  border: 1px solid #35090d;
+  border-radius: 0;
+  color: var(--nc-red-bright);
+  cursor: pointer;
+  height: 24px;
+  margin: 0 0 6px;
+  padding: 0;
+  width: 28px;
+}
+
+.nc2073-quick-head > button:hover {
+  border-color: var(--nc-red);
+}
+
+.nc2073-quick-items {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.nc2073-quick-drop-hint {
+  align-items: center;
+  border: 1px dashed #3f0b10;
+  color: var(--nc-dim);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 8px;
+  gap: 6px;
+  justify-content: center;
+  line-height: 1.25;
+  margin-top: 4px;
+  min-height: 34px;
+  padding: 5px 7px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.nc2073-quick-list.is-dragover .nc2073-quick-drop-hint {
+  border-color: var(--nc-red);
+  color: var(--nc-red-bright);
 }
 
 .nc2073-quick-list h3,
@@ -316,6 +389,14 @@
   padding: 4px 7px 4px 4px;
   text-align: left;
   width: 100%;
+}
+
+.nc2073-quick[draggable="true"] {
+  cursor: grab;
+}
+
+.nc2073-quick[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 .nc2073-quick.is-empty {
@@ -485,7 +566,9 @@
 .nc2073-identity > div:first-child {
   display: grid;
   gap: 6px;
+  justify-items: stretch;
   min-width: 0;
+  text-align: left !important;
 }
 
 .nc2073-identity-actions {
@@ -494,7 +577,8 @@
   gap: 7px;
 }
 
-.nc2073-wizard-button {
+.nc2073-wizard-button,
+.nc2073-progression-button {
   align-items: center;
   appearance: none;
   background: #0a0102;
@@ -503,26 +587,27 @@
   color: var(--nc-red-bright) !important;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  font-size: 8px;
-  gap: 3px;
+  font-size: 18px;
   justify-content: center;
   margin: 0;
-  min-width: 70px;
-  padding: 5px 8px;
+  min-width: 56px;
+  padding: 5px;
   text-transform: uppercase;
 }
 
-.nc2073-wizard-button i {
-  font-size: 14px;
+.nc2073-wizard-button i,
+.nc2073-progression-button i {
+  font-size: 19px;
 }
 
-.nc2073-wizard-button:hover {
+.nc2073-wizard-button:hover,
+.nc2073-progression-button:hover {
   border-color: var(--nc-red);
   box-shadow: 0 0 8px rgba(255, 42, 53, 0.22);
 }
 
-.nc2073-wizard-button:disabled {
+.nc2073-wizard-button:disabled,
+.nc2073-progression-button:disabled {
   cursor: default;
   opacity: 0.45;
 }
@@ -553,6 +638,7 @@
   cursor: pointer;
   display: flex;
   gap: 10px;
+  justify-content: flex-start !important;
   line-height: normal !important;
   margin: 0;
   max-width: 100%;
@@ -562,6 +648,7 @@
   padding: 0;
   position: static !important;
   text-align: left;
+  width: 100%;
 }
 
 .nc2073-name:disabled {
@@ -592,6 +679,7 @@
   position: static !important;
   text-overflow: ellipsis;
   text-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+  text-align: left !important;
   transform: none !important;
   visibility: visible !important;
   white-space: nowrap;
@@ -853,8 +941,8 @@
 
 .nc2073-traits {
   display: grid;
-  gap: 5px;
-  grid-template-columns: repeat(7, minmax(78px, 1fr));
+  gap: 6px;
+  grid-template-columns: repeat(4, minmax(118px, 1fr));
   margin-bottom: 11px;
 }
 
@@ -862,9 +950,10 @@
   background: #070707;
   border: 1px solid #2e0a0d;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 18px;
+  grid-template-columns: minmax(0, 1fr) 22px;
+  grid-template-rows: 23px minmax(35px, 1fr);
   margin: 0;
-  min-height: 50px;
+  min-height: 64px;
   min-width: 0;
   padding: 0;
   text-align: center;
@@ -884,27 +973,41 @@
   border-radius: 0;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  gap: 7px;
+  grid-column: 1;
+  grid-row: 2;
   justify-content: center;
   line-height: normal !important;
   margin: 0;
   min-width: 0;
-  padding: 4px 2px;
+  padding: 2px 7px 6px;
+}
+
+.nc2073-trait__roll small {
+  color: var(--nc-red);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
 .nc2073-panel .nc2073-trait__label {
   color: var(--nc-muted);
   display: block !important;
-  font-size: 9px !important;
+  align-self: end;
+  font-size: 10px !important;
   font-weight: 700 !important;
   letter-spacing: 0.04em;
-  line-height: 1.15 !important;
+  grid-column: 1;
+  grid-row: 1;
+  line-height: 1.2 !important;
   max-width: 100%;
   opacity: 1 !important;
   overflow: hidden;
   position: static !important;
-  text-overflow: ellipsis;
+  padding: 5px 7px 1px;
+  text-align: left !important;
+  text-overflow: clip;
   text-transform: uppercase;
   transform: none !important;
   visibility: visible !important;
@@ -927,6 +1030,8 @@
 .nc2073-luck-controls {
   border-left: 1px solid #25080b;
   display: grid;
+  grid-column: 2;
+  grid-row: 1 / 3;
   grid-template-rows: 1fr 1fr;
 }
 
@@ -957,7 +1062,8 @@
 .nc2073-trait--luck {
   cursor: default;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 18px;
+  grid-template-columns: minmax(0, 1fr) 22px;
+  grid-template-rows: 23px minmax(35px, 1fr);
   padding: 0;
 }
 
@@ -966,13 +1072,16 @@
   background: transparent;
   border: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  gap: 7px;
+  grid-column: 1;
+  grid-row: 2;
   height: 100%;
   justify-content: center;
   line-height: normal !important;
   margin: 0;
   min-width: 0;
-  padding: 4px 2px;
+  padding: 2px 7px 6px;
 }
 
 .nc2073-section-grid {
@@ -983,6 +1092,10 @@
 
 .nc2073-section-grid--properties {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nc2073-tab[data-nc-tab="inventory"] .nc2073-section-grid > .nc2073-section:first-child {
+  grid-column: 1 / -1;
 }
 
 .nc2073-section-grid--properties > .nc2073-section:first-child {
@@ -998,15 +1111,15 @@
   .nc2073-card--feature
   .nc2073-card__open
   > img {
-  flex-basis: 58px;
-  height: 58px;
-  width: 58px;
+  flex-basis: 96px;
+  height: 116px;
+  width: 96px;
 }
 
 .nc2073-section-grid--properties
   > .nc2073-section:first-child
   .nc2073-card--feature {
-  min-height: 60px;
+  min-height: 118px !important;
 }
 
 .nc2073-section {
@@ -1030,8 +1143,10 @@
   border-radius: 0;
   display: flex;
   margin: 0;
-  min-height: 76px;
+  height: auto !important;
+  min-height: 84px;
   min-width: 0;
+  overflow: hidden !important;
   padding: 0;
   text-align: left;
   width: 100%;
@@ -1048,6 +1163,12 @@ button.nc2073-card {
 .nc2073-card.is-equipped {
   border-color: #8d1821;
   box-shadow: inset 0 0 9px rgba(255, 42, 53, 0.08);
+}
+
+.nc2073-card--weapon .nc2073-card__open > img {
+  flex-basis: 82px;
+  height: 82px;
+  width: 82px;
 }
 
 .nc2073-card > img,
@@ -1070,10 +1191,19 @@ button.nc2073-card {
   flex: 1 1 auto;
   line-height: normal !important;
   margin: 0;
-  min-height: 74px;
+  height: auto !important;
+  min-height: 82px;
   min-width: 0;
   padding: 0;
   text-align: left;
+}
+
+.nc2073-card[draggable="true"] {
+  cursor: grab;
+}
+
+.nc2073-card[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 .nc2073-card__copy {
@@ -1084,7 +1214,7 @@ button.nc2073-card {
   justify-content: flex-start;
   line-height: normal !important;
   min-width: 0;
-  overflow: hidden;
+  overflow: hidden !important;
   padding: 7px 9px;
   position: static !important;
   transform: none !important;
@@ -1123,7 +1253,7 @@ button.nc2073-card {
 
 .nc2073-panel .nc2073-card__description {
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   color: #a9a9a9 !important;
   display: -webkit-box !important;
   font-size: 11px !important;
@@ -1141,18 +1271,26 @@ button.nc2073-card {
 }
 
 .nc2073-card--feature {
-  min-height: 90px;
+  height: auto !important;
+  min-height: 118px !important;
+  overflow: hidden !important;
 }
 
 .nc2073-card--feature .nc2073-card__open > img {
-  flex-basis: 88px;
-  height: 88px;
+  flex-basis: 116px;
+  height: 116px;
   object-fit: contain;
-  width: 88px;
+  width: 116px;
 }
 
 .nc2073-card--feature .nc2073-card__copy {
   padding: 8px 9px;
+}
+
+.nc2073-card--feature .nc2073-card__open {
+  height: auto !important;
+  min-height: 116px !important;
+  overflow: hidden !important;
 }
 
 .nc2073-panel .nc2073-card--feature .nc2073-card__title {
@@ -1169,9 +1307,18 @@ button.nc2073-card {
 }
 
 .nc2073-panel .nc2073-card--feature .nc2073-card__description {
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
   font-size: 12px !important;
   line-height: 1.4 !important;
+  max-height: 50.4px !important;
+}
+
+.nc2073-panel .nc2073-card__hint {
+  color: var(--nc-dim);
+  display: block;
+  font-size: 9px;
+  line-height: 1.25;
+  margin-top: 5px;
 }
 
 .nc2073-action {
@@ -1213,6 +1360,45 @@ button.nc2073-card {
   letter-spacing: 0.06em;
 }
 
+.nc2073-weapon-rolls {
+  border-left: 1px solid #3f0b10;
+  display: grid;
+  flex: 0 0 64px;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.nc2073-weapon-rolls button {
+  align-items: center;
+  appearance: none;
+  background: #0c0203;
+  border: 0;
+  border-bottom: 1px solid #3f0b10;
+  border-radius: 0;
+  color: var(--nc-red-bright);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font-size: 7px;
+  gap: 2px;
+  justify-content: center;
+  line-height: 1;
+  margin: 0;
+  padding: 4px 2px;
+  text-transform: uppercase;
+}
+
+.nc2073-weapon-rolls button:last-child {
+  border-bottom: 0;
+}
+
+.nc2073-weapon-rolls button:hover {
+  background: #230609;
+}
+
+.nc2073-weapon-rolls i {
+  font-size: 12px;
+}
+
 .nc2073-equip {
   appearance: none;
   background: #080808;
@@ -1252,35 +1438,74 @@ button.nc2073-card {
   color: var(--nc-red-bright) !important;
 }
 
+.nc2073-pin.is-pinned {
+  background: #210508;
+  color: var(--nc-red-bright) !important;
+  text-shadow: 0 0 6px rgba(255, 42, 53, 0.65);
+}
+
+.nc2073-delete {
+  appearance: none;
+  background: #080808;
+  border: 0;
+  border-left: 1px solid #3f0b10;
+  border-radius: 0;
+  color: #7b292f !important;
+  cursor: pointer;
+  flex: 0 0 32px;
+  font-size: 11px;
+  margin: 0;
+  padding: 5px;
+}
+
+.nc2073-delete:hover {
+  background: #270609;
+  color: var(--nc-red-bright) !important;
+}
+
 .nc2073-card--implant.is-installed {
   border-color: var(--nc-red);
   box-shadow: inset 0 0 10px rgba(255, 42, 53, 0.08);
 }
 
 .nc2073-switch {
+  appearance: none;
   align-items: center;
   background: #090909;
+  border: 0;
   border-left: 1px solid #32090d;
+  border-radius: 0;
   color: var(--nc-dim);
   cursor: pointer;
   display: flex;
+  flex-direction: column;
   flex: 0 0 46px;
   font-size: 8px;
+  gap: 4px;
   justify-content: center;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-.nc2073-switch input {
-  height: 1px;
-  opacity: 0;
-  position: absolute;
-  width: 1px;
+.nc2073-switch i {
+  font-size: 16px;
 }
 
-.nc2073-switch input:checked + span {
+.nc2073-switch[aria-pressed="true"],
+.nc2073-switch[aria-pressed="true"] span,
+.nc2073-switch[aria-pressed="true"] i {
   color: var(--nc-red-bright);
   text-shadow: 0 0 6px rgba(255, 42, 53, 0.67);
+}
+
+.nc2073-switch:hover:not(:disabled) {
+  background: #1c0507;
+  color: var(--nc-red-bright);
+}
+
+.nc2073-switch:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 .nc2073-empty,
@@ -1395,7 +1620,7 @@ button.nc2073-card {
 .nc2073-data-grid {
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 8px;
 }
 
@@ -1533,6 +1758,136 @@ button.nc2073-card {
 .application.nc2073-wizard-dialog .window-content {
   background: #000;
   padding: 0;
+}
+
+.application.nc2073-weapon-dialog .window-content,
+.application.nc2073-progression-dialog .window-content,
+.application.nc2073-confirm-dialog .window-content {
+  background: #000;
+  color: #f7f7f7;
+  padding: 0;
+}
+
+.application.nc2073-weapon-dialog .form-footer,
+.application.nc2073-progression-dialog .form-footer,
+.application.nc2073-confirm-dialog .form-footer {
+  background: #050505;
+  border-top: 1px solid #35090d;
+  padding: 8px;
+}
+
+.application.nc2073-weapon-dialog .form-footer button,
+.application.nc2073-progression-dialog .form-footer button,
+.application.nc2073-confirm-dialog .form-footer button {
+  background: #0a0102;
+  border: 1px solid #4b0b11;
+  color: #f7f7f7;
+}
+
+.nc2073-weapon-details {
+  background: #000;
+  color: #f7f7f7;
+  display: grid;
+  font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif;
+  gap: 14px;
+  grid-template-columns: 180px minmax(0, 1fr);
+  min-height: 230px;
+  padding: 16px;
+}
+
+.nc2073-weapon-details > img {
+  background: #050505;
+  border: 1px solid #6e0d14;
+  height: 180px;
+  object-fit: contain;
+  width: 180px;
+}
+
+.nc2073-weapon-details__copy {
+  min-width: 0;
+}
+
+.nc2073-weapon-details__copy p {
+  color: #c8c8c8;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 12px 0;
+  white-space: normal;
+}
+
+.nc2073-weapon-details__meta,
+.nc2073-weapon-details__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.nc2073-weapon-details__meta span,
+.nc2073-weapon-details__tags span {
+  background: #090909;
+  border: 1px solid #3b0a0f;
+  color: #ff4a52;
+  font-size: 9px;
+  padding: 4px 6px;
+  text-transform: uppercase;
+}
+
+.nc2073-progression-menu,
+.nc2073-confirm {
+  background: #000;
+  color: #f7f7f7;
+  font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif;
+  padding: 16px;
+}
+
+.nc2073-progression-menu > p {
+  color: #bdbdbd;
+  margin: 0 0 12px;
+}
+
+.nc2073-progression-menu > div {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nc2073-progression-menu > div > span {
+  align-items: center;
+  background: #070707;
+  border: 1px solid #35090d;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 105px;
+  padding: 13px;
+  text-align: center;
+}
+
+.nc2073-progression-menu i {
+  color: #ff2a35;
+  font-size: 24px;
+}
+
+.nc2073-progression-menu small {
+  color: #767676;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.nc2073-confirm {
+  align-items: center;
+  display: flex;
+  gap: 13px;
+}
+
+.nc2073-confirm > i {
+  color: #ff2a35;
+  font-size: 28px;
+}
+
+.nc2073-confirm p {
+  line-height: 1.5;
+  margin: 0;
 }
 
 .application.nc2073-wizard-dialog .form-footer {
