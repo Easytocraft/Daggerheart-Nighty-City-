@@ -536,9 +536,9 @@ function featureList(items, emptyText, { quick = true, editable = false } = {}) 
             data-nc-action="item" data-item-id="${item.id}">
             <img src="${escapeHtml(item.img)}" alt="">
             <span class="nc2073-card__copy">
-              <strong>${escapeHtml(item.name)}</strong>
-              <small>${escapeHtml(direction)}</small>
-              ${description ? `<span>${escapeHtml(description)}</span>` : ""}
+              <strong class="nc2073-card__title">${escapeHtml(item.name)}</strong>
+              <small class="nc2073-card__meta">${escapeHtml(direction)}</small>
+              ${description ? `<span class="nc2073-card__description">${escapeHtml(description)}</span>` : ""}
             </span>
           </button>
           ${
@@ -586,9 +586,9 @@ function inventoryList(
             data-nc-action="item" data-item-id="${item.id}">
             <img src="${escapeHtml(item.img)}" alt="">
             <span class="nc2073-card__copy">
-              <strong>${escapeHtml(item.name)}</strong>
-              <small>${escapeHtml(meta)}</small>
-              ${description ? `<span>${escapeHtml(description)}</span>` : ""}
+              <strong class="nc2073-card__title">${escapeHtml(item.name)}</strong>
+              <small class="nc2073-card__meta">${escapeHtml(meta)}</small>
+              ${description ? `<span class="nc2073-card__description">${escapeHtml(description)}</span>` : ""}
             </span>
           </button>
           ${
@@ -670,7 +670,8 @@ function traitControl(key, trait, value, editable) {
       <button type="button" class="nc2073-trait__roll"
         data-nc-action="trait" data-trait="${key}"
         title="Проверка дуальности Daggerheart">
-        <span>${escapeHtml(trait.label)}</span><strong>${prefix}${value}</strong>
+        <span class="nc2073-trait__label">${escapeHtml(trait.label)}</span>
+        <strong class="nc2073-trait__value">${prefix}${value}</strong>
       </button>
       <span class="nc2073-trait__controls">
         <button type="button" data-nc-action="trait-adjust" data-trait="${key}"
@@ -867,9 +868,9 @@ function implantList(items, editable) {
             data-nc-action="item" data-item-id="${item.id}">
             <img src="${escapeHtml(item.img)}" alt="">
             <span class="nc2073-card__copy">
-              <strong>${escapeHtml(item.name)}</strong>
-              <small>${escapeHtml(zone)} · нагрузка 1</small>
-              <span>${escapeHtml(itemDescription(item))}</span>
+              <strong class="nc2073-card__title">${escapeHtml(item.name)}</strong>
+              <small class="nc2073-card__meta">${escapeHtml(zone)} · нагрузка 1</small>
+              <span class="nc2073-card__description">${escapeHtml(itemDescription(item))}</span>
             </span>
           </button>
           <button type="button" class="nc2073-action nc2073-action--duality"
@@ -1059,10 +1060,85 @@ function setActiveTab(panel, tab) {
 function wizardDocumentSource(document) {
   const source = document.toObject();
   delete source._id;
-  delete source._stats;
   delete source.folder;
   delete source.ownership;
+  // Daggerheart 1.9.14 validates subclasses against the compendium UUIDs
+  // stored on the selected class. Keep the source UUID exactly as its own
+  // character creator does; without it the subclass is rejected and the
+  // entire wizard appears to reset.
+  source.uuid = document.uuid;
+  source._stats = {
+    ...(source._stats ?? {}),
+    compendiumSource: document.uuid
+  };
   return source;
+}
+
+function wizardKindFromSource(source) {
+  return source?.flags?.[FLAG_SCOPE]?.kind ?? null;
+}
+
+function cloneWizardSource(source) {
+  const cloned = foundry.utils.deepClone
+    ? foundry.utils.deepClone(source)
+    : JSON.parse(JSON.stringify(source));
+  const compendiumSource = cloned?._stats?.compendiumSource;
+  if (!cloned.uuid && compendiumSource) cloned.uuid = compendiumSource;
+  return cloned;
+}
+
+async function createWizardDocument(actor, documentOrSource, { keepId = false } = {}) {
+  const source = documentOrSource?.toObject
+    ? wizardDocumentSource(documentOrSource)
+    : cloneWizardSource(documentOrSource);
+  const expectedKind = wizardKindFromSource(source);
+  const expectedName = source.name ?? "выбранная карточка";
+  const created = await actor.createEmbeddedDocuments(
+    "Item",
+    [source],
+    keepId ? { keepId: true } : {}
+  );
+  const result = created?.find?.(item => {
+    const kind = choiceKind(item);
+    return (!expectedKind || kind === expectedKind) && item.name === expectedName;
+  });
+  if (!result) {
+    throw new Error(`Daggerheart отклонил карточку «${expectedName}» (${expectedKind ?? source.type}).`);
+  }
+  return result;
+}
+
+async function deleteWizardItems(actor, items = actor.items.filter(isWizardChoiceItem)) {
+  const deletionOrder = [
+    "class-feature",
+    "faction-feature",
+    "subclass",
+    "faction",
+    "class"
+  ];
+  for (const kind of deletionOrder) {
+    const ids = items
+      .filter(item => choiceKind(item) === kind && actor.items.get(item.id))
+      .map(item => item.id);
+    if (ids.length) await actor.deleteEmbeddedDocuments("Item", ids);
+  }
+}
+
+async function restoreWizardSnapshot(actor, sources) {
+  const creationOrder = ["class", "subclass", "faction", "class-feature", "faction-feature"];
+  for (const kind of creationOrder) {
+    for (const source of sources.filter(entry => wizardKindFromSource(entry) === kind)) {
+      // Creating a class/community may already materialize its linked base
+      // feature. Do not duplicate it while restoring a previous build.
+      if (
+        ["class-feature", "faction-feature"].includes(kind) &&
+        actor.items.some(item => choiceKind(item) === kind && item.name === source.name)
+      ) {
+        continue;
+      }
+      await createWizardDocument(actor, source, { keepId: true });
+    }
+  }
 }
 
 function choiceKind(item) {
@@ -1198,6 +1274,7 @@ async function choiceDialog({
 async function applyCharacterWizard(actor, selection) {
   const previousItems = actor.items.filter(isWizardChoiceItem);
   const previousSources = previousItems.map(item => item.toObject());
+  const previousBuild = actor.getFlag?.(FLAG_SCOPE, "characterBuild");
   const previousTraits = Object.fromEntries(
     Object.keys(TRAITS).map(key => [key, Number(actor.system?.traits?.[key]?.value) || 0])
   );
@@ -1209,13 +1286,13 @@ async function applyCharacterWizard(actor, selection) {
   ].filter(Boolean);
 
   try {
-    if (previousItems.length) {
-      await actor.deleteEmbeddedDocuments("Item", previousItems.map(item => item.id));
+    if (previousItems.length) await deleteWizardItems(actor, previousItems);
+
+    // These documents must be created one after another. Daggerheart's
+    // subclass pre-create hook checks the actor's already embedded class.
+    for (const document of primaryDocuments) {
+      await createWizardDocument(actor, document);
     }
-    await actor.createEmbeddedDocuments(
-      "Item",
-      primaryDocuments.map(wizardDocumentSource)
-    );
 
     // Some Daggerheart sheets materialize linked features automatically. Only
     // create the feature cards that are still absent after class/faction import.
@@ -1226,10 +1303,15 @@ async function applyCharacterWizard(actor, selection) {
       );
     });
     if (missingFeatures.length) {
-      await actor.createEmbeddedDocuments(
+      const created = await actor.createEmbeddedDocuments(
         "Item",
         missingFeatures.map(wizardDocumentSource)
       );
+      if (created.length !== missingFeatures.length) {
+        throw new Error(
+          `Daggerheart добавил ${created.length} из ${missingFeatures.length} выбранных способностей.`
+        );
+      }
     }
     const suggestedTraits = selection.classItem.system?.characterGuide?.suggestedTraits ?? {};
     const traitUpdates = {};
@@ -1238,6 +1320,44 @@ async function applyCharacterWizard(actor, selection) {
       if (Number.isFinite(value)) traitUpdates[`system.traits.${key}.value`] = value;
     }
     if (Object.keys(traitUpdates).length) await actor.update(traitUpdates);
+    const createdChoices = actor.items.filter(isWizardChoiceItem);
+    const createdKinds = createdChoices.map(choiceKind);
+    const expectedCounts = {
+      class: 1,
+      subclass: 1,
+      "class-feature": 3,
+      faction: 1,
+      "faction-feature": 1
+    };
+    for (const [kind, expected] of Object.entries(expectedCounts)) {
+      const actual = createdKinds.filter(value => value === kind).length;
+      if (actual !== expected) {
+        throw new Error(`После сохранения ${kind}: ${actual}/${expected}.`);
+      }
+    }
+
+    await actor.setFlag(FLAG_SCOPE, "characterBuild", {
+      schema: 1,
+      class: {
+        name: selection.classItem.name,
+        slug: ncFlag(selection.classItem, "slug"),
+        uuid: selection.classItem.uuid
+      },
+      subclass: {
+        name: selection.subclassItem.name,
+        slug: ncFlag(selection.subclassItem, "slug"),
+        uuid: selection.subclassItem.uuid
+      },
+      abilities: selection.abilities.map(item => ({
+        name: item.name,
+        uuid: item.uuid
+      })),
+      faction: {
+        name: selection.factionItem.name,
+        slug: ncFlag(selection.factionItem, "slug"),
+        uuid: selection.factionItem.uuid
+      }
+    });
     await actor.setFlag(FLAG_SCOPE, "wizardComplete", true);
     await recalculateCyberpsychosis(actor, { render: false });
     ui.notifications.info(
@@ -1245,19 +1365,26 @@ async function applyCharacterWizard(actor, selection) {
     );
   } catch (error) {
     console.error(`${MODULE_ID} | Не удалось применить мастер создания`, error);
-    const currentChoices = actor.items.filter(isWizardChoiceItem);
-    if (currentChoices.length) {
-      await actor.deleteEmbeddedDocuments("Item", currentChoices.map(item => item.id));
+    try {
+      await deleteWizardItems(actor);
+      if (previousSources.length) await restoreWizardSnapshot(actor, previousSources);
+      await actor.update(
+        Object.fromEntries(
+          Object.entries(previousTraits).map(([key, value]) => [`system.traits.${key}.value`, value])
+        )
+      );
+      if (previousBuild !== undefined) {
+        await actor.setFlag(FLAG_SCOPE, "characterBuild", previousBuild);
+      }
+      ui.notifications.error(
+        `Не удалось применить выборы: ${error.message} Предыдущее состояние восстановлено.`
+      );
+    } catch (restoreError) {
+      console.error(`${MODULE_ID} | Не удалось восстановить прежний выбор`, restoreError);
+      ui.notifications.error(
+        `Не удалось сохранить конструктор: ${error.message}. Восстановление также завершилось ошибкой.`
+      );
     }
-    if (previousSources.length) {
-      await actor.createEmbeddedDocuments("Item", previousSources, { keepId: true });
-    }
-    await actor.update(
-      Object.fromEntries(
-        Object.entries(previousTraits).map(([key, value]) => [`system.traits.${key}.value`, value])
-      )
-    );
-    ui.notifications.error("Не удалось применить выборы. Предыдущее состояние восстановлено.");
   }
 }
 
@@ -1463,7 +1590,8 @@ function buildPanel(actor) {
             <div class="nc2073-eyebrow"><span>Персональная запись // Проверена</span><span>AR LINK 100%</span></div>
             <button type="button" class="nc2073-name" data-nc-action="name"
               ${editable ? "" : "disabled"} title="Изменить имя персонажа">
-              <h2>${escapeHtml(actor.name)}</h2><i class="fa-solid fa-pen"></i>
+              <span class="nc2073-name__text">${escapeHtml(actor.name)}</span>
+              <i class="fa-solid fa-pen"></i>
             </button>
             <div class="nc2073-chips">
               ${identityChip(classItem, "Класс не выбран")}
@@ -1512,7 +1640,8 @@ function buildPanel(actor) {
               <div class="nc2073-trait nc2073-trait--luck">
                 <button type="button" data-nc-action="luck"
                   title="Клик: обычная проверка · Shift: преимущество · Alt: помеха">
-                  <span>Удача</span><strong>${actorLuck(actor) >= 0 ? "+" : ""}${actorLuck(actor)}</strong>
+                  <span class="nc2073-trait__label">Удача</span>
+                  <strong class="nc2073-trait__value">${actorLuck(actor) >= 0 ? "+" : ""}${actorLuck(actor)}</strong>
                 </button>
                 <span class="nc2073-luck-controls">
                   <button type="button" data-nc-action="luck-adjust" data-delta="-1" ${editable ? "" : "disabled"}>−</button>
