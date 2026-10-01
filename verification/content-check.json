@@ -1,0 +1,21 @@
+{
+  "documents": 305,
+  "records": 511,
+  "counts": {
+    "class": 4,
+    "feature": 62,
+    "loot": 19,
+    "domainCard": 126,
+    "ancestry": 4,
+    "community": 9,
+    "weapon": 28,
+    "armor": 13,
+    "consumable": 12,
+    "adversary": 20,
+    "subclass": 8
+  },
+  "system_localization_keys": 1779,
+  "currency_labels": 5,
+  "description_templates_and_rolls_preserved": true,
+  "live_foundry_tested": false
+}

@@ -1,0 +1,168 @@
+{
+  "id": "daggerheart-cyberpunk-ru",
+  "title": "Киберпанк — четыре класса (русская адаптация)",
+  "description": "Четыре класса, восемь специализаций, шесть направлений, девять фракций, снаряжение и противники. Русская адаптация для Daggerheart 1.9.14 и Foundry VTT 13.",
+  "version": "0.2.0-beta.1",
+  "compatibility": {
+    "minimum": "13.346",
+    "maximum": "13"
+  },
+  "authors": [
+    {
+      "name": "Пользовательская киберпанк-адаптация"
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "daggerheart",
+        "type": "system",
+        "compatibility": {
+          "minimum": "1.9.14",
+          "maximum": "1.9.14"
+        }
+      }
+    ]
+  },
+  "languages": [
+    {
+      "lang": "ru",
+      "name": "Русский — Киберпанк",
+      "path": "lang/ru.json"
+    }
+  ],
+  "esmodules": [
+    "scripts/main.js"
+  ],
+  "packs": [
+    {
+      "name": "classes",
+      "label": "Киберпанк: Классы и снаряжение",
+      "path": "packs/classes",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "domains",
+      "label": "Киберпанк: Карточки направлений",
+      "path": "packs/domains",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "ancestries",
+      "label": "Киберпанк: Биотипы",
+      "path": "packs/ancestries",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "communities",
+      "label": "Киберпанк: Фракции",
+      "path": "packs/communities",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "weapons",
+      "label": "Киберпанк: Оружие",
+      "path": "packs/weapons",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "armors",
+      "label": "Киберпанк: Броня",
+      "path": "packs/armors",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "consumables",
+      "label": "Киберпанк: Расходники",
+      "path": "packs/consumables",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "loot",
+      "label": "Киберпанк: Снаряжение",
+      "path": "packs/loot",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "adversaries",
+      "label": "Киберпанк: Противники",
+      "path": "packs/adversaries",
+      "type": "Actor",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "NONE",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "subclasses",
+      "label": "Киберпанк: Специализации",
+      "path": "packs/subclasses",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    }
+  ],
+  "packFolders": [
+    {
+      "name": "Киберпанк",
+      "sorting": "m",
+      "color": "#20bfc6",
+      "packs": [
+        "classes",
+        "domains",
+        "ancestries",
+        "communities",
+        "weapons",
+        "armors",
+        "consumables",
+        "loot",
+        "adversaries",
+        "subclasses"
+      ]
+    }
+  ]
+}
