@@ -1,42 +1,44 @@
 {
-  "id": "daggerheart-night-city-2073-fv13",
-  "title": "Night City 2073 — киберпанк для Daggerheart (Foundry 13)",
-  "version": "0.7.0-fv13.1",
-  "manifest": "https://raw.githubusercontent.com/Easytocraft/Daggerheart-Nighty-City-/main/module.json",
-  "download": "https://github.com/Easytocraft/Daggerheart-Nighty-City-/archive/refs/heads/main.zip",
-  "url": "https://github.com/Easytocraft/Daggerheart-Nighty-City-",
+  "id": "daggerheart-cyberpunk-ru",
+  "title": "Киберпанк — четыре класса (русская адаптация)",
+  "description": "Четыре класса, восемь специализаций, шесть направлений, девять фракций, снаряжение и противники. Русская адаптация для Daggerheart 1.9.14 и Foundry VTT 13.",
+  "version": "0.2.0-beta.1",
   "compatibility": {
     "minimum": "13.346",
-    "verified": "13.351",
-    "maximum": "13.999"
+    "maximum": "13"
   },
-  "description": "<p>Русскоязычная киберпанк-адаптация для Foundry VTT 13: чёрно-красный AR-паспорт, нативные броски дуальности Daggerheart, пошаговый конструктор персонажа, четыре класса, восемь подклассов, четыре фракции, оружие, импланты и полный комплект изображений.</p>",
   "authors": [
     {
-      "name": "Домашняя игровая группа"
+      "name": "Пользовательская киберпанк-адаптация"
     }
   ],
-  "flags": {
-    "canUpload": true
-  },
   "relationships": {
     "systems": [
       {
         "id": "daggerheart",
         "type": "system",
         "compatibility": {
-          "minimum": "1.9.0",
-          "verified": "1.9.14",
+          "minimum": "1.9.14",
           "maximum": "1.9.14"
         }
       }
     ]
   },
+  "languages": [
+    {
+      "lang": "ru",
+      "name": "Русский — Киберпанк",
+      "path": "lang/ru.json"
+    }
+  ],
+  "esmodules": [
+    "scripts/main.js"
+  ],
   "packs": [
     {
-      "name": "nc2073-items",
-      "label": "Night City 2073: персонажи, оружие и импланты",
-      "path": "packs/nc2073-items",
+      "name": "classes",
+      "label": "Киберпанк: Классы и снаряжение",
+      "path": "packs/classes",
       "type": "Item",
       "system": "daggerheart",
       "ownership": {
@@ -45,10 +47,98 @@
       }
     },
     {
-      "name": "nc2073-macros",
-      "label": "Night City 2073: макросы",
-      "path": "packs/nc2073-macros",
-      "type": "Macro",
+      "name": "domains",
+      "label": "Киберпанк: Карточки направлений",
+      "path": "packs/domains",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "ancestries",
+      "label": "Киберпанк: Биотипы",
+      "path": "packs/ancestries",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "communities",
+      "label": "Киберпанк: Фракции",
+      "path": "packs/communities",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "weapons",
+      "label": "Киберпанк: Оружие",
+      "path": "packs/weapons",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "armors",
+      "label": "Киберпанк: Броня",
+      "path": "packs/armors",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "consumables",
+      "label": "Киберпанк: Расходники",
+      "path": "packs/consumables",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "loot",
+      "label": "Киберпанк: Снаряжение",
+      "path": "packs/loot",
+      "type": "Item",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "adversaries",
+      "label": "Киберпанк: Противники",
+      "path": "packs/adversaries",
+      "type": "Actor",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "NONE",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "subclasses",
+      "label": "Киберпанк: Специализации",
+      "path": "packs/subclasses",
+      "type": "Item",
       "system": "daggerheart",
       "ownership": {
         "PLAYER": "OBSERVER",
@@ -56,17 +146,23 @@
       }
     }
   ],
-  "esmodules": [
-    "scripts/night-city-2073.js"
-  ],
-  "styles": [
-    "styles/night-city-2073.css"
-  ],
-  "languages": [
+  "packFolders": [
     {
-      "lang": "ru",
-      "name": "Русский",
-      "path": "lang/ru.json"
+      "name": "Киберпанк",
+      "sorting": "m",
+      "color": "#20bfc6",
+      "packs": [
+        "classes",
+        "domains",
+        "ancestries",
+        "communities",
+        "weapons",
+        "armors",
+        "consumables",
+        "loot",
+        "adversaries",
+        "subclasses"
+      ]
     }
   ]
 }

@@ -1,4 +1,4 @@
-{
+export default {
   "TYPES.Item.ancestry": "Биотип",
   "TYPES.Item.community": "Фракция",
   "TYPES.Item.class": "Класс",
@@ -1783,4 +1783,4 @@
   "DAGGERHEART.UI.Sidebar.daggerheartMenu.startScene": "Начать сцену",
   "DAGGERHEART.UI.Tooltip.makeDeathMove": "Действие на грани смерти",
   "DAGGERHEART.UI.Tooltip.openSheetSettings": "Открыть настройки"
-}
+};
